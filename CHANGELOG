@@ -1,3 +1,15 @@
+
+marred-PNGquant history
+
+version 0.0.1
+ - marred-PNGquant project started (IOW rape begin)
+ - author uses Windows OS so changed target compiler from GCC to VC++(VS2008)
+   and modified source code from C99 to C++ since microsoft VC++ does not support C99.
+
+--------------------------------------------------------------------------------
+
+improved-PNGquant history
+
 version 1.3
 -----------
  - significant changes to the algorithm: use of variance

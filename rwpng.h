@@ -34,7 +34,7 @@
 #  define FALSE 0
 #endif
 
-typedef enum {
+enum pngquant_error {
     SUCCESS = 0,
     READ_ERROR = 2,
     TOO_MANY_COLORS = 5,
@@ -51,23 +51,23 @@ typedef enum {
 
     INVALID_ARGUMENT = 4,
     MISSING_ARGUMENT = 1,
-} pngquant_error;
+};
 
-typedef struct {
+struct read_info {
     jmp_buf jmpbuf;
     png_uint_32 width;
     png_uint_32 height;
     png_uint_32 rowbytes;
     double gamma;
     int interlaced;
-    unsigned char *rgba_data;
-    unsigned char **row_pointers;
-} read_info;
+    unsigned char* rgba_data;
+    unsigned char** row_pointers;
+};
 
-typedef struct {
+struct write_info {
     jmp_buf jmpbuf;
-    void *png_ptr;
-    void *info_ptr;
+    void* png_ptr;
+    void* info_ptr;
     png_uint_32 width;
     png_uint_32 height;
     double gamma;
@@ -76,26 +76,27 @@ typedef struct {
     int num_trans;
     png_color palette[256];
     unsigned char trans[256];
-    unsigned char *indexed_data;
-    unsigned char **row_pointers;
-} write_info;
+    unsigned char* indexed_data;
+    unsigned char** row_pointers;
+};
 
-typedef union {
+union read_or_write_info {
     jmp_buf jmpbuf;
     read_info read;
     write_info write;
-} read_or_write_info;
+};
 
 /* prototypes for public functions in rwpng.c */
 
-void rwpng_version_info(FILE *fp);
+void rwpng_version_info(FILE* fp);
 
-pngquant_error rwpng_read_image(FILE *infile, read_info *mainprog_ptr);
+pngquant_error rwpng_read_image(FILE* infile, read_info* mainprog_ptr);
 
-pngquant_error rwpng_write_image_init(FILE *outfile, write_info *mainprog_ptr);
+pngquant_error rwpng_write_image_init(FILE* outfile, write_info* mainprog_ptr);
 
-pngquant_error rwpng_write_image_whole(write_info *mainprog_ptr);
+pngquant_error rwpng_write_image_whole(write_info* mainprog_ptr);
 
-int rwpng_write_image_row(write_info *mainprog_ptr);
+int rwpng_write_image_row(write_info* mainprog_ptr);
 
-int rwpng_write_image_finish(write_info *mainprog_ptr);
+int rwpng_write_image_finish(write_info* mainprog_ptr);
+

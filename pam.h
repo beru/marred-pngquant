@@ -29,13 +29,45 @@
 
 /* from pam.h */
 
-typedef struct {
-    unsigned char r, g, b, a;
-} rgb_pixel;
+struct rgb_pixel {
+	rgb_pixel(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
+		:
+		r(r),
+		g(g),
+		b(b),
+		a(a)
+	{
+	}
+	
+	rgb_pixel() {}
 
-typedef struct {
+	unsigned char r, g, b, a;
+};
+
+struct f_pixel {
+	f_pixel(float a, float r, float g, float b)
+		:
+		a(a),
+		r(r),
+		g(g),
+		b(b)
+	{
+	}
+	
+	f_pixel() {}
     float a, r, g, b;
-}  __attribute__ ((aligned (16))) f_pixel;
+};
+
+static inline
+bool operator == (const f_pixel& l, const f_pixel& r)
+{
+	return 1
+		&& l.a == r.a
+		&& l.r == r.r
+		&& l.g == r.g
+		&& l.b == r.b
+		;
+}
 
 static const float internal_gamma = 0.45455;
 
@@ -43,7 +75,8 @@ static const float internal_gamma = 0.45455;
  Converts scalar color to internal gamma and premultiplied alpha.
  (premultiplied color space is much better for blending of semitransparent colors)
  */
-inline static f_pixel to_f_scalar(float gamma, f_pixel px)
+static inline
+f_pixel to_f_scalar(float gamma, f_pixel px)
 {
     if (gamma != internal_gamma) {
         px.r = powf(px.r, internal_gamma/gamma);
@@ -61,20 +94,28 @@ inline static f_pixel to_f_scalar(float gamma, f_pixel px)
 /**
   Converts 8-bit RGB with given gamma to scalar RGB
  */
-inline static f_pixel to_f(float gamma, rgb_pixel px)
+static inline
+f_pixel to_f(float gamma, rgb_pixel px)
 {
-    return to_f_scalar(gamma, (f_pixel){
-        .a = px.a/255.0f,
-        .r = px.r/255.0f,
-        .g = px.g/255.0f,
-        .b = px.b/255.0f,
-    });
+	
+
+    return to_f_scalar(
+		gamma,
+		f_pixel(
+			px.a/255.0f,
+			px.r/255.0f,
+			px.g/255.0f,
+			px.b/255.0f
+		)
+	);
 }
 
-inline static rgb_pixel to_rgb(float gamma, f_pixel px)
+static inline
+rgb_pixel to_rgb(float gamma, f_pixel px)
 {
     if (px.a < 1.0/256.0) {
-        return (rgb_pixel){0,0,0,0};
+		rgb_pixel ret(0,0,0,0);
+        return ret;
     }
 
     float r,g,b,a;
@@ -87,16 +128,17 @@ inline static rgb_pixel to_rgb(float gamma, f_pixel px)
     b = powf(px.b/px.a, gamma)*256.0f;
     a = px.a*256.0;
 
-    return (rgb_pixel){
-        .r = r>=255 ? 255 : (r<=0 ? 0 : r),
-        .g = g>=255 ? 255 : (g<=0 ? 0 : g),
-        .b = b>=255 ? 255 : (b<=0 ? 0 : b),
-        .a = a>=255 ? 255 : a,
-    };
+	rgb_pixel ret;
+	ret.r = r>=255 ? 255 : (r<=0 ? 0 : r);
+	ret.g = g>=255 ? 255 : (g<=0 ? 0 : g);
+	ret.b = b>=255 ? 255 : (b<=0 ? 0 : b);
+	ret.a = a>=255 ? 255 : a;
+    return ret;
 }
 
 
-inline static float colordifference_stdc(f_pixel px, f_pixel py)
+static inline
+float colordifference_stdc(f_pixel px, f_pixel py)
 {
     return (px.a - py.a) * (px.a - py.a) * 3.0 +
            (px.r - py.r) * (px.r - py.r) +
@@ -104,7 +146,8 @@ inline static float colordifference_stdc(f_pixel px, f_pixel py)
            (px.b - py.b) * (px.b - py.b);
 }
 
-inline static float colordifference(f_pixel px, f_pixel py)
+static inline
+float colordifference(f_pixel px, f_pixel py)
 {
 #ifdef USE_SSE
     __m128 vpx = _mm_load_ps((const float*)&px);
@@ -128,40 +171,42 @@ inline static float colordifference(f_pixel px, f_pixel py)
 
 /* from pamcmap.h */
 
-typedef struct {
+struct hist_item {
     f_pixel acolor;
-    float adjusted_weight, perceptual_weight;
-} hist_item;
-
-typedef struct {
-    hist_item *achv;
-    int size;
-} hist;
-
-typedef struct {
-    f_pixel acolor;
-    float popularity;
-} colormap_item;
-
-typedef struct {
-    colormap_item *palette;
-    int colors;
-} colormap;
-
-struct acolorhist_list_item {
-    f_pixel acolor;
-    struct acolorhist_list_item *next;
+    float adjusted_weight;
     float perceptual_weight;
 };
 
-typedef struct {
-    struct mempool *mempool;
-    struct acolorhist_list_item **buckets;
-} *acolorhash_table;
+struct hist {
+    hist_item* achv;
+    int size;
+};
+
+struct colormap_item {
+    f_pixel acolor;
+    float popularity;
+};
+
+struct colormap {
+    colormap_item* palette;
+    int colors;
+};
+
+struct acolorhist_list_item {
+    f_pixel acolor;
+    acolorhist_list_item* next;
+    float perceptual_weight;
+};
+
+struct acolorhash_table {
+    struct mempool* mempool;
+    acolorhist_list_item** buckets;
+};
 
 
 hist *pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
-void pam_freeacolorhist(hist *h);
+void pam_freeacolorhist(hist* h);
 
-colormap *pam_colormap(int colors);
-void pam_freecolormap(colormap *c);
+colormap* pam_colormap(int colors);
+void pam_freecolormap(colormap* c);
+

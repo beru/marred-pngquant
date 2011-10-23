@@ -1,3 +1,9 @@
+#marred-PNGquant
+
+This is a [fork](https://github.com/beru/marred-pngquant) of [improved-pngquant] that is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org/pub/png/apps/pngquant.html).
+
+original README.md below
+------------------
 #PNGquant-improved
 
 This is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org/pub/png/apps/pngquant.html).
@@ -98,4 +104,6 @@ Read image from stdin and send result to stdout.
 Stops processing of arguments. This allows use of file names that start with `-`. If you're using pngquant in a script, it's advisable to put this before file names:
 
     pngquant $OPTIONS -- "$FILE"
+
+
 
