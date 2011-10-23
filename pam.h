@@ -1,21 +1,21 @@
 /**
  ** Copyright (C) 1989, 1991 by Jef Poskanzer.
  ** Copyright (C) 1997, 2000, 2002 by Greg Roelofs; based on an idea by
- **                                Stefan Schneider.
+ **								   Stefan Schneider.
  ** (C) 2011 by Kornel Lesinski.
  **
  ** Permission to use, copy, modify, and distribute this software and its
  ** documentation for any purpose and without fee is hereby granted, provided
  ** that the above copyright notice appear in all copies and that both that
  ** copyright notice and this permission notice appear in supporting
- ** documentation.  This software is provided "as is" without express or
+ ** documentation.	This software is provided "as is" without express or
  ** implied warranty.
  */
 
 #include <math.h>
 #ifndef MAX
-#  define MAX(a,b)  ((a) > (b)? (a) : (b))
-#  define MIN(a,b)  ((a) < (b)? (a) : (b))
+#  define MAX(a,b)	((a) > (b)? (a) : (b))
+#  define MIN(a,b)	((a) < (b)? (a) : (b))
 #endif
 
 #ifdef __SSE3__
@@ -55,7 +55,7 @@ struct f_pixel {
 	}
 	
 	f_pixel() {}
-    float a, r, g, b;
+	float a, r, g, b;
 };
 
 static inline
@@ -78,17 +78,17 @@ static const float internal_gamma = 0.45455;
 static inline
 f_pixel to_f_scalar(float gamma, f_pixel px)
 {
-    if (gamma != internal_gamma) {
-        px.r = powf(px.r, internal_gamma/gamma);
-        px.g = powf(px.g, internal_gamma/gamma);
-        px.b = powf(px.b, internal_gamma/gamma);
-    }
+	if (gamma != internal_gamma) {
+		px.r = powf(px.r, internal_gamma/gamma);
+		px.g = powf(px.g, internal_gamma/gamma);
+		px.b = powf(px.b, internal_gamma/gamma);
+	}
 
-    px.r *= px.a;
-    px.g *= px.a;
-    px.b *= px.a;
+	px.r *= px.a;
+	px.g *= px.a;
+	px.b *= px.a;
 
-    return px;
+	return px;
 }
 
 /**
@@ -97,9 +97,7 @@ f_pixel to_f_scalar(float gamma, f_pixel px)
 static inline
 f_pixel to_f(float gamma, rgb_pixel px)
 {
-	
-
-    return to_f_scalar(
+	return to_f_scalar(
 		gamma,
 		f_pixel(
 			px.a/255.0f,
@@ -113,98 +111,98 @@ f_pixel to_f(float gamma, rgb_pixel px)
 static inline
 rgb_pixel to_rgb(float gamma, f_pixel px)
 {
-    if (px.a < 1.0/256.0) {
+	if (px.a < 1.0/256.0) {
 		rgb_pixel ret(0,0,0,0);
-        return ret;
-    }
+		return ret;
+	}
 
-    float r,g,b,a;
+	float r,g,b,a;
 
-    gamma /= internal_gamma;
+	gamma /= internal_gamma;
 
-    // 256, because numbers are in range 1..255.9999… rounded down
-    r = powf(px.r/px.a, gamma)*256.0f;
-    g = powf(px.g/px.a, gamma)*256.0f;
-    b = powf(px.b/px.a, gamma)*256.0f;
-    a = px.a*256.0;
+	// 256, because numbers are in range 1..255.9999… rounded down
+	r = powf(px.r/px.a, gamma)*256.0f;
+	g = powf(px.g/px.a, gamma)*256.0f;
+	b = powf(px.b/px.a, gamma)*256.0f;
+	a = px.a*256.0;
 
 	rgb_pixel ret;
 	ret.r = r>=255 ? 255 : (r<=0 ? 0 : r);
 	ret.g = g>=255 ? 255 : (g<=0 ? 0 : g);
 	ret.b = b>=255 ? 255 : (b<=0 ? 0 : b);
 	ret.a = a>=255 ? 255 : a;
-    return ret;
+	return ret;
 }
 
 
 static inline
 float colordifference_stdc(f_pixel px, f_pixel py)
 {
-    return (px.a - py.a) * (px.a - py.a) * 3.0 +
-           (px.r - py.r) * (px.r - py.r) +
-           (px.g - py.g) * (px.g - py.g) +
-           (px.b - py.b) * (px.b - py.b);
+	return (px.a - py.a) * (px.a - py.a) * 3.0 +
+			(px.r - py.r) * (px.r - py.r) +
+			(px.g - py.g) * (px.g - py.g) +
+			(px.b - py.b) * (px.b - py.b);
 }
 
 static inline
 float colordifference(f_pixel px, f_pixel py)
 {
 #ifdef USE_SSE
-    __m128 vpx = _mm_load_ps((const float*)&px);
-    __m128 vpy = _mm_load_ps((const float*)&py);
+	__m128 vpx = _mm_load_ps((const float*)&px);
+	__m128 vpy = _mm_load_ps((const float*)&py);
 
-    __m128 tmp = _mm_sub_ps(vpx, vpy); // t = px - py
-    tmp = _mm_mul_ps(tmp, tmp); // t = t * t
-    tmp = _mm_mul_ss(tmp, _mm_set_ss(3.0)); // alpha * 3.0
+	__m128 tmp = _mm_sub_ps(vpx, vpy); // t = px - py
+	tmp = _mm_mul_ps(tmp, tmp); // t = t * t
+	tmp = _mm_mul_ss(tmp, _mm_set_ss(3.0)); // alpha * 3.0
 
-    tmp = _mm_hadd_ps(tmp,tmp); // 0+1 2+3 0+1 2+3
-    __m128 rev = _mm_shuffle_ps(tmp, tmp, 0x1B); // reverses vector 2+3 0+1 2+3 0+1
-    tmp = _mm_add_ss(tmp, rev); // 0+1 + 2+3
+	tmp = _mm_hadd_ps(tmp,tmp); // 0+1 2+3 0+1 2+3
+	__m128 rev = _mm_shuffle_ps(tmp, tmp, 0x1B); // reverses vector 2+3 0+1 2+3 0+1
+	tmp = _mm_add_ss(tmp, rev); // 0+1 + 2+3
 
-    float res = _mm_cvtss_f32(tmp);
-    assert(fabs(res - colordifference_stdc(px,py)) < 0.001);
-    return res;
+	float res = _mm_cvtss_f32(tmp);
+	assert(fabs(res - colordifference_stdc(px,py)) < 0.001);
+	return res;
 #else
-    return colordifference_stdc(px,py);
+	return colordifference_stdc(px,py);
 #endif
 }
 
 /* from pamcmap.h */
 
 struct hist_item {
-    f_pixel acolor;
-    float adjusted_weight;
-    float perceptual_weight;
+	f_pixel acolor;
+	float adjusted_weight;
+	float perceptual_weight;
 };
 
 struct hist {
-    hist_item* achv;
-    int size;
+	hist_item* achv;
+	int size;
 };
 
 struct colormap_item {
-    f_pixel acolor;
-    float popularity;
+	f_pixel acolor;
+	float popularity;
 };
 
 struct colormap {
-    colormap_item* palette;
-    int colors;
+	colormap_item* palette;
+	int colors;
 };
 
 struct acolorhist_list_item {
-    f_pixel acolor;
-    acolorhist_list_item* next;
-    float perceptual_weight;
+	f_pixel acolor;
+	acolorhist_list_item* next;
+	float perceptual_weight;
 };
 
 struct acolorhash_table {
-    struct mempool* mempool;
-    acolorhist_list_item** buckets;
+	struct mempool* mempool;
+	acolorhist_list_item** buckets;
 };
 
 
-hist *pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
+hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
 void pam_freeacolorhist(hist* h);
 
 colormap* pam_colormap(int colors);

@@ -23,6 +23,7 @@
 #include "mediancut.h"
 
 #include <vector>
+#include <algorithm>
 
 #define index_of_channel(ch) (offsetof(f_pixel,ch)/sizeof(float))
 
@@ -53,12 +54,11 @@ struct channelvariance {
 	float variance;
 };
 
-static
-int comparevariance(const void* ch1, const void* ch2)
+static inline
+bool operator < (const channelvariance& ch1, const channelvariance& ch2)
 {
-	return ((channelvariance*)ch1)->variance > ((channelvariance*)ch2)->variance ? -1 :
-		  (((channelvariance*)ch1)->variance < ((channelvariance*)ch2)->variance ? 1 : 0);
-};
+	return ch2.variance - ch1.variance;
+}
 
 static channelvariance channel_sort_order[4];
 
@@ -170,7 +170,7 @@ void sort_colors_by_variance(f_pixel variance, hist_item achv[], int indx, int c
 	channel_sort_order[2] = channelvariance(index_of_channel(b), variance.b);
 	channel_sort_order[3] = channelvariance(index_of_channel(a), variance.a);
 
-	qsort(channel_sort_order, 4, sizeof(channel_sort_order[0]), comparevariance);
+	std::sort(channel_sort_order, channel_sort_order+4);
 	
 	int (*comp)(const void*, const void*); // comp variable that is a pointer to a function
 	const int ch = channel_sort_order[0].chan;
@@ -187,7 +187,7 @@ void sort_colors_by_variance(f_pixel variance, hist_item achv[], int indx, int c
  ** Find the best splittable box. -1 if no boxes are splittable.
  */
 static
-int best_splittable_box(box* bv, int boxes)
+int best_splittable_box(const box* bv, int boxes)
 {
 	int bi = -1;
 	float maxsum = 0;
@@ -205,7 +205,7 @@ int best_splittable_box(box* bv, int boxes)
 }
 
 static inline
-float color_weight(f_pixel median, hist_item h)
+float color_weight(f_pixel median, const hist_item& h)
 {
 	float diff = colordifference(median, h.acolor);
 	// if color is "good enough", don't split further
@@ -213,8 +213,8 @@ float color_weight(f_pixel median, hist_item h)
 	return sqrtf(diff) * sqrtf(h.adjusted_weight);
 }
 
-static colormap* colormap_from_boxes(const box* bv, int boxes, hist_item* achv, float min_opaque_val);
-static void adjust_histogram(hist_item* achv, colormap* map, const box* bv,int boxes);
+static colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, float min_opaque_val);
+static void adjust_histogram(hist_item* achv, const colormap* map, const box* bv,int boxes);
 
 /*
  ** Here is the fun part, the median-cut colormap generator.  This is based
@@ -276,9 +276,9 @@ colormap* mediancut(hist* hist, float min_opaque_val, int newcolors)
 		for (break_at=0; break_at<clrs-1; ++break_at) {
 			if (lowervar >= halfvar)
 				break;
-
-			lowervar += color_weight(median, achv[indx+break_at]);
-			lowersum += achv[indx + break_at].adjusted_weight;
+			const hist_item& hist = achv[indx+break_at];
+			lowervar += color_weight(median, hist);
+			lowersum += hist.adjusted_weight;
 		}
 
 		/*
@@ -303,7 +303,7 @@ colormap* mediancut(hist* hist, float min_opaque_val, int newcolors)
 }
 
 static
-colormap* colormap_from_boxes(const box* bv, int boxes, hist_item* achv, float min_opaque_val)
+colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, float min_opaque_val)
 {
 	/*
 	 ** Ok, we've got enough boxes.	 Now choose a representative color for
@@ -332,13 +332,14 @@ colormap* colormap_from_boxes(const box* bv, int boxes, hist_item* achv, float m
 
 /* increase histogram popularity by difference from the final color (this is used as part of feedback loop) */
 static
-void adjust_histogram(hist_item* achv, colormap* map, const box* bv, int boxes)
+void adjust_histogram(hist_item* achv, const colormap* map, const box* bv, int boxes)
 {
 	for (int bi=0; bi<boxes; ++bi) {
 		const box& bx = bv[bi];
+		f_pixel pc = map->palette[bi].acolor;
 		for (int i=bx.ind; i<bx.ind+bx.colors; i++) {
 			hist_item& hist = achv[i];
-			hist.adjusted_weight *= 1.0 + sqrt(colordifference(map->palette[bi].acolor, hist.acolor)) / 2.0;
+			hist.adjusted_weight *= 1.0 + sqrt(colordifference(pc, hist.acolor)) / 2.0;
 		}
 	}
 }
@@ -385,8 +386,7 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaq
 	r /= sum;
 	g /= sum;
 	b /= sum;
-
-
+	
 	/** if there was at least one completely opaque color, "round" final color to opaque */
 	if (a >= min_opaque_val && maxa >= (255.0/256.0)) a = 1;
 

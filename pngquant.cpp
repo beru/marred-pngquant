@@ -61,6 +61,7 @@
 #include "mediancut.h"
 
 #include <vector>
+#include <algorithm>
 
 pngquant_error pngquant(read_info* input_image, write_info* output_image, bool floyd, int reqcolors, bool ie_bug, int speed_tradeoff);
 pngquant_error read_image(const char* filename, bool using_stdin, read_info* input_image_p);
@@ -70,7 +71,7 @@ static void viter_init(const colormap* map, f_pixel* average_color, float* avera
 static void viter_update_color(f_pixel acolor, float value, colormap* map, int match,
 							   f_pixel* average_color, float* average_color_count,
 							   const f_pixel* base_color, const float* base_color_count);
-static void viter_finalize(colormap* map, f_pixel* average_color, float* average_color_count);
+static void viter_finalize(colormap* map, const f_pixel* average_color, const float* average_color_count);
 
 static bool verbose = false;
 
@@ -210,7 +211,7 @@ int main(int argc, char* argv[])
 
 		read_info input_image = {{0}};
 		write_info output_image = {{0}};
-		retval = read_image(filename,using_stdin,&input_image);
+		retval = read_image(filename,using_stdin, &input_image);
 
 		if (!retval) {
 			retval = pngquant(&input_image, &output_image, floyd, reqcolors, ie_bug, speed_tradeoff);
@@ -264,12 +265,10 @@ int main(int argc, char* argv[])
 	return latest_error;
 }
 
-static
-int compare_popularity(const void* ch1, const void* ch2)
+static inline
+bool compare_popularity(const colormap_item& v1, const colormap_item& v2)
 {
-	float v1 = ((const colormap_item*)ch1)->popularity;
-	float v2 = ((const colormap_item*)ch2)->popularity;
-	return v1 - v2;
+	return v1.popularity - v2.popularity;
 }
 
 void sort_palette(write_info* output_image, colormap* map)
@@ -291,9 +290,7 @@ void sort_palette(write_info* output_image, colormap* map)
 		rgb_pixel px = to_rgb(output_image->gamma, pal.acolor);
 		if (px.a != 255) {
 			if (i != num_transparent) {
-				colormap_item tmp = map->palette[num_transparent];
-				map->palette[num_transparent] = pal;
-				pal = tmp;
+				std::swap(map->palette[num_transparent], pal);
 				i--;
 			}
 			num_transparent++;
@@ -305,8 +302,8 @@ void sort_palette(write_info* output_image, colormap* map)
 	/* colors sorted by popularity make pngs slightly more compressible
 	 * opaque and transparent are sorted separately
 	 */
-	qsort(map->palette, num_transparent, sizeof(map->palette[0]), compare_popularity);
-	qsort(map->palette+num_transparent, map->colors-num_transparent, sizeof(map->palette[0]), compare_popularity);
+	std::sort(map->palette, map->palette+num_transparent, compare_popularity);
+	std::sort(map->palette+num_transparent, map->palette+map->colors-num_transparent, compare_popularity);
 
 	output_image->num_palette = map->colors;
 	output_image->num_trans = num_transparent;
@@ -332,9 +329,9 @@ int best_color_index(f_pixel px, const colormap* map, float min_opaque_val, floa
 {
 	const colormap_item* const acolormap = map->palette;
 	const int numcolors = map->colors;
-	int ind=0;
+	int ind = 0;
 	const int iebug = px.a > min_opaque_val;
-	float dist = colordifference(px,acolormap[0].acolor);
+	float dist = colordifference(px, acolormap[0].acolor);
 
 	for (int i=1; i<numcolors; i++) {
 		f_pixel itemCol = acolormap[i].acolor;
@@ -399,16 +396,16 @@ float remap_to_palette(read_info* input_image, write_info* output_image, colorma
 float remap_to_palette_floyd(read_info* input_image, write_info* output_image, const colormap* map, float min_opaque_val, bool ie_bug)
 {
 	rgb_pixel** input_pixels = (rgb_pixel**) input_image->row_pointers;
-	unsigned char **row_pointers = output_image->row_pointers;
+	unsigned char** row_pointers = output_image->row_pointers;
 	int rows = input_image->height, cols = input_image->width;
 	double gamma = input_image->gamma;
 
-	int remapped_pixels=0;
-	float remapping_error=0;
+	int remapped_pixels = 0;
+	float remapping_error = 0;
 
-	const colormap_item *acolormap = map->palette;
+	const colormap_item* acolormap = map->palette;
 
-	int ind=0;
+	int ind = 0;
 	int transparent_ind = best_color_index(f_pixel(0,0,0,0), map, min_opaque_val, NULL);
 
 	f_pixel* thiserr = NULL;
@@ -466,7 +463,7 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 
 			row_pointers[row][col] = ind;
 
-			float colorimp = (3.0f + acolormap[ind].acolor.a)/4.0f;
+			float colorimp = (3.0f + acolormap[ind].acolor.a) / 4.0f;
 			f_pixel xp = acolormap[ind].acolor;
 
 			f_pixel err;
@@ -526,11 +523,7 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 				if (col < 0) break;
 			}
 		}while(1);
-
-		f_pixel *temperr;
-		temperr = thiserr;
-		thiserr = nexterr;
-		nexterr = temperr;
+		std::swap(thiserr, nexterr);
 		fs_direction = !fs_direction;
 	}
 
@@ -569,12 +562,12 @@ void set_binary_mode(FILE* fp)
 
 pngquant_error write_image(write_info* output_image, const char* filename, const char* newext, bool force, bool using_stdin)
 {
-	FILE *outfile;
+	FILE* outfile;
 	if (using_stdin) {
 		set_binary_mode(stdout);
 		outfile = stdout;
 	}else {
-		char *outname = add_filename_extension(filename,newext);
+		char* outname = add_filename_extension(filename, newext);
 
 		if (!force) {
 			if ((outfile = fopen(outname, "rb")) != NULL) {
@@ -613,8 +606,8 @@ pngquant_error write_image(write_info* output_image, const char* filename, const
 hist* histogram(read_info* input_image, int reqcolors, int speed_tradeoff)
 {
 	hist* hist;
-	int ignorebits=0;
-	const rgb_pixel *const *input_pixels = (const rgb_pixel *const *)input_image->row_pointers;
+	int ignorebits = 0;
+	const rgb_pixel*const* input_pixels = (const rgb_pixel*const*)input_image->row_pointers;
 	int cols = input_image->width, rows = input_image->height;
 	double gamma = input_image->gamma;
 	assert(gamma > 0);
@@ -650,8 +643,8 @@ float modify_alpha(read_info* input_image, bool ie_bug)
 
 	rgb_pixel** input_pixels = (rgb_pixel**) input_image->row_pointers;
 	rgb_pixel* pP;
-	int rows= input_image->height;
-	int cols = input_image->width;
+	const int rows = input_image->height;
+	const int cols = input_image->width;
 	double gamma = input_image->gamma;
 	float min_opaque_val, almost_opaque_val;
 
@@ -700,7 +693,7 @@ float modify_alpha(read_info* input_image, bool ie_bug)
 
 pngquant_error read_image(const char* filename, bool using_stdin, read_info* input_image_p)
 {
-	FILE *infile;
+	FILE* infile;
 
 	if (using_stdin) {
 		set_binary_mode(stdin);
@@ -735,8 +728,8 @@ void viter_init(const colormap* map,
 				 f_pixel* average_color, float* average_color_count,
 				 f_pixel* base_color, float* base_color_count)
 {
-	colormap_item *newmap = map->palette;
-	int newcolors = map->colors;
+	colormap_item* newmap = map->palette;
+	const int newcolors = map->colors;
 	for (int i=0; i<newcolors; i++) {
 		average_color_count[i] = 0;
 		average_color[i] = f_pixel(0,0,0,0);
@@ -748,13 +741,15 @@ void viter_init(const colormap* map,
 	// some base color and weight is added
 	if (base_color) {
 		for (int i=0; i<newcolors; i++) {
-			float value = 1.0+newmap[i].popularity/2.0;
+			const colormap_item& nmi = newmap[i];
+			float value = 1.0 + nmi.popularity/2.0;
 			base_color_count[i] = value;
+			const f_pixel& nc = nmi.acolor;
 			base_color[i] = f_pixel(
-				newmap[i].acolor.a * value,
-				newmap[i].acolor.r * value,
-				newmap[i].acolor.g * value,
-				newmap[i].acolor.b * value
+				nc.a * value,
+				nc.r * value,
+				nc.g * value,
+				nc.b * value
 			);
 		}
 	}
@@ -765,36 +760,43 @@ void viter_update_color(f_pixel acolor, float value, colormap* map, int match,
 						 f_pixel* average_color, float* average_color_count,
 						 const f_pixel* base_color, const float* base_color_count)
 {
-	average_color[match].a += acolor.a * value;
-	average_color[match].r += acolor.r * value;
-	average_color[match].g += acolor.g * value;
-	average_color[match].b += acolor.b * value;
-	average_color_count[match] += value;
+	f_pixel& ac = average_color[match];
+	float& acc = average_color_count[match];
+	const f_pixel& bc = base_color[match];
+	const float& bcc = base_color_count[match];
+	ac.a += acolor.a * value;
+	ac.r += acolor.r * value;
+	ac.g += acolor.g * value;
+	ac.b += acolor.b * value;
+	acc += value;
 
 	if (base_color) {
+		float tcc = acc + bcc;
 		map->palette[match].acolor = f_pixel(
-			(average_color[match].a + base_color[match].a) / (average_color_count[match] + base_color_count[match]),
-			(average_color[match].r + base_color[match].r) / (average_color_count[match] + base_color_count[match]),
-			(average_color[match].g + base_color[match].g) / (average_color_count[match] + base_color_count[match]),
-			(average_color[match].b + base_color[match].b) / (average_color_count[match] + base_color_count[match])
+			(ac.a + bc.a) / tcc,
+			(ac.r + bc.r) / tcc,
+			(ac.g + bc.g) / tcc,
+			(ac.b + bc.b) / tcc
 		);
 	}
 }
 
 static
-void viter_finalize(colormap* map, f_pixel* average_color, float* average_color_count)
+void viter_finalize(colormap* map, const f_pixel* average_color, const float* average_color_count)
 {
 	for (int i=0; i<map->colors; i++) {
 		colormap_item& pal = map->palette[i];
-		if (average_color_count[i]) {
+		const float acc = average_color_count[i];
+		if (acc) {
+			const f_pixel& ac = average_color[i];
 			pal.acolor = f_pixel(
-				(average_color[i].a) / average_color_count[i],
-				(average_color[i].r) / average_color_count[i],
-				(average_color[i].g) / average_color_count[i],
-				(average_color[i].b) / average_color_count[i]
+				ac.a / acc,
+				ac.r / acc,
+				ac.g / acc,
+				ac.b / acc
 			);
 		}
-		pal.popularity = average_color_count[i];
+		pal.popularity = acc;
 	}
 }
 
@@ -821,15 +823,15 @@ pngquant_error pngquant(read_info* input_image, write_info* output_image, bool f
 
 	verbose_printf("  reading file corrected for gamma %2.1f\n", 1.0/input_image->gamma);
 
-	min_opaque_val = modify_alpha(input_image,ie_bug);
+	min_opaque_val = modify_alpha(input_image, ie_bug);
 	assert(min_opaque_val>0);
 
-	hist *hist = histogram(input_image, reqcolors, speed_tradeoff);
-	hist_item *achv = hist->achv;
+	hist* hist = histogram(input_image, reqcolors, speed_tradeoff);
+	hist_item* achv = hist->achv;
 
-	colormap *acolormap = NULL;
+	colormap* acolormap = NULL;
 	float least_error = -1;
-	int feedback_loop_trials = 56-9*speed_tradeoff;
+	int feedback_loop_trials = 56 - 9*speed_tradeoff;
 	const double percent = (double)(feedback_loop_trials>0?feedback_loop_trials:1)/100.0;
 
 	do {

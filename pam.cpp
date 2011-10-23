@@ -152,7 +152,7 @@ acolorhash_table* pam_computeacolorhash(const rgb_pixel*const* apixels, int cols
 	const int maxval = 255 >> ignorebits;
 	acolorhash_table* acht = pam_allocacolorhash();
 	acolorhist_list_item** buckets = acht->buckets;
-	int colors=0;
+	int colors = 0;
 
 	/* Go through the entire image, building a hash table of colors. */
 	for (int row=0; row<rows; ++row) {
