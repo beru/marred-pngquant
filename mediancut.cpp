@@ -347,26 +347,18 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaq
 		float weight = 1.0f;
 		const hist_item& hist = achv[indx + i];
 		f_pixel px = hist.acolor;
-		float tmp;
-
 		/* give more weight to colors that are further away from average
 		 this is intended to prevent desaturation of images and fading of whites
 		 */
-		tmp = (0.5f - px.r);
-		weight += tmp*tmp;
-		tmp = (0.5f - px.g);
-		weight += tmp*tmp;
-		tmp = (0.5f - px.b);
-		weight += tmp*tmp;
-
+		f_pixel tmp = f_pixel(0.5f, 0.5f, 0.5f, 0.5f) - px;
+		tmp.square();
+		weight += tmp.r + tmp.g + tmp.b;
 		weight *= hist.adjusted_weight;
+		csum += px * weight;
 		sum += weight;
 
 		/* find if there are opaque colors, in case we're supposed to preserve opacity exactly (ie_bug) */
 		maxa = std::max(maxa, px.a);
-
-		px *= weight;
-		csum += px;
 	}
 
 	/* Colors are in premultiplied alpha colorspace, so they'll blend OK

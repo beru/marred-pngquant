@@ -578,7 +578,8 @@ hist* histogram(read_info* input_image, int reqcolors, int speed_tradeoff)
 	hist* hist;
 	int ignorebits = 0;
 	const rgb_pixel*const* input_pixels = (const rgb_pixel*const*)input_image->row_pointers;
-	int cols = input_image->width, rows = input_image->height;
+	int cols = input_image->width;
+	int rows = input_image->height;
 	double gamma = input_image->gamma;
 	assert(gamma > 0);
 
@@ -830,7 +831,7 @@ pngquant_error pngquant(read_info* input_image, write_info* output_image, bool f
 		}
 
 		verbose_printf("%d%%\n",100-MAX(0,(int)(feedback_loop_trials/percent)));
-	}while(feedback_loop_trials > 0);
+	}while (feedback_loop_trials > 0);
 
 	verbose_printf("  moving colormap towards local minimum\n");
 

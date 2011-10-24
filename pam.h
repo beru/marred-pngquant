@@ -214,11 +214,7 @@ f_pixel to_f(float gamma, rgb_pixel px)
 {
 	return to_f_scalar(
 		gamma,
-		f_pixel(
-			px.a/255.0f,
-			px.r/255.0f,
-			px.g/255.0f,
-			px.b/255.0f
+		px / 255.0f
 		)
 	);
 }
@@ -253,10 +249,9 @@ rgb_pixel to_rgb(float gamma, f_pixel px)
 static inline
 float colordifference_stdc(f_pixel px, f_pixel py)
 {
-	return (px.a - py.a) * (px.a - py.a) * 3.0 +
-			(px.r - py.r) * (px.r - py.r) +
-			(px.g - py.g) * (px.g - py.g) +
-			(px.b - py.b) * (px.b - py.b);
+	f_pixel diff = px - py;
+	diff.square();
+	return diff.a * 3.0f + diff.r + diff.g + diff.b;
 }
 
 static inline
@@ -315,7 +310,6 @@ struct acolorhash_table {
 	struct mempool* mempool;
 	acolorhist_list_item** buckets;
 };
-
 
 hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
 void pam_freeacolorhist(hist* h);

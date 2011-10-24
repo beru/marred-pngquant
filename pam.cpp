@@ -80,7 +80,6 @@ void mempool_free(mempool* m)
 	}
 }
 
-
 static inline
 unsigned long pam_hashapixel(f_pixel px)
 {
