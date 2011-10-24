@@ -119,23 +119,11 @@ f_pixel posterize_pixel(rgb_pixel px, int maxval, float gamma)
 
 float boost_from_contrast(f_pixel prev, f_pixel fpx, f_pixel next, f_pixel above, f_pixel below, float prev_boost)
 {
-	float r = fabsf(fpx.r*2.0f - (prev.r+next.r)),
-		  g = fabsf(fpx.g*2.0f - (prev.g+next.g)),
-		  b = fabsf(fpx.b*2.0f - (prev.b+next.b)),
-		  a = fabsf(fpx.a*2.0f - (prev.a+next.a));
-
-	float r1 = fabsf(fpx.r*2.0f - (above.r+below.r)),
-		  g1 = fabsf(fpx.g*2.0f - (above.g+below.g)),
-		  b1 = fabsf(fpx.b*2.0f - (above.b+below.b)),
-		  a1 = fabsf(fpx.a*2.0f - (above.a+below.a));
-
-	r = MAX(r, r1); // maximum of vertical or horizontal contrast. It's better at picking up noise.
-	g = MAX(g, g1);
-	b = MAX(b, b1);
-	a = MAX(a, a1);
-
-	float contrast = r+g+b + 2.0f*a; // oddly a*2 works better than *3
-
+	f_pixel fpx2 = fpx * 2.0f;
+	f_pixel c0 = (fpx2 - (prev + next)).abs();
+	f_pixel c1 = (fpx2 - (above + below)).abs();
+	f_pixel c = max(c0, c1); // maximum of vertical or horizontal contrast. It's better at picking up noise.
+	float contrast = c.r + c.g + c.b + 2.0f*c.a; // oddly a*2 works better than *3
 	// 0.6-contrast avoids boosting flat areas
 	contrast = MIN(1.0f, fabsf(0.6f-contrast/3.0f)) * (1.0f/0.6f);
 	// I want only really high contrast (noise, edges) to influence

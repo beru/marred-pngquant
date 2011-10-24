@@ -57,7 +57,7 @@ struct channelvariance {
 static inline
 bool operator < (const channelvariance& ch1, const channelvariance& ch2)
 {
-	return ch2.variance - ch1.variance;
+	return ch1.variance > ch2.variance;
 }
 
 static channelvariance channel_sort_order[4];
@@ -144,16 +144,7 @@ f_pixel channel_variance(const hist_item achv[], int indx, int clrs, float min_o
 	f_pixel variance(0,0,0,0);
 
 	for (int i=0; i<clrs; ++i) {
-		f_pixel px = achv[indx + i].acolor;
-		f_pixel df;
-		df.a = mean.a - px.a;
-		df.r = mean.r - px.r;
-		df.g = mean.g - px.g;
-		df.b = mean.b - px.b;
-		variance.a += df.a * df.a;
-		variance.r += df.r * df.r;
-		variance.g += df.g * df.g;
-		variance.b += df.b * df.b;
+		variance += (mean - achv[indx + i].acolor).square();
 	}
 	return variance;
 }
@@ -347,7 +338,8 @@ void adjust_histogram(hist_item* achv, const colormap* map, const box* bv, int b
 static
 f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaque_val)
 {
-	float r = 0, g = 0, b = 0, a = 0, sum = 0;
+	f_pixel csum(0,0,0,0);
+	float sum = 0;
 	float maxa = 0;
 	int i;
 
@@ -370,26 +362,21 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaq
 		weight *= hist.adjusted_weight;
 		sum += weight;
 
-		r += px.r * weight;
-		g += px.g * weight;
-		b += px.b * weight;
-		a += px.a * weight;
-
 		/* find if there are opaque colors, in case we're supposed to preserve opacity exactly (ie_bug) */
-		if (px.a > maxa) maxa = px.a;
+		maxa = std::max(maxa, px.a);
+
+		px *= weight;
+		csum += px;
 	}
 
 	/* Colors are in premultiplied alpha colorspace, so they'll blend OK
 	 even if different opacities were mixed together */
 	if (!sum) sum=1;
-	a /= sum;
-	r /= sum;
-	g /= sum;
-	b /= sum;
+	csum /= sum;
 	
 	/** if there was at least one completely opaque color, "round" final color to opaque */
-	if (a >= min_opaque_val && maxa >= (255.0/256.0)) a = 1;
+	if (csum.a >= min_opaque_val && maxa >= (255.0/256.0)) csum.a = 1;
 
-	return f_pixel(a,r,g,b);
+	return csum;
 }
 

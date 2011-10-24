@@ -54,9 +54,124 @@ struct f_pixel {
 	{
 	}
 	
+	f_pixel& operator += (const f_pixel& p)
+	{
+		a += p.a;
+		r += p.r;
+		g += p.g;
+		b += p.b;
+		return *this;
+	}
+
+	f_pixel& operator - ()
+	{
+		a = -a;
+		r = -r;
+		g = -g;
+		b = -b;
+		return *this;
+	}
+
+	f_pixel& operator -= (const f_pixel& p)
+	{
+		a -= p.a;
+		r -= p.r;
+		g -= p.g;
+		b -= p.b;
+		return *this;
+	}
+
+	f_pixel& operator *= (float v)
+	{
+		a *= v;
+		r *= v;
+		g *= v;
+		b *= v;
+		return *this;
+	}
+
+	f_pixel& operator *= (const f_pixel& p)
+	{
+		a *= p.a;
+		r *= p.r;
+		g *= p.g;
+		b *= p.b;
+		return *this;
+	}
+
+	f_pixel& operator /= (float v)
+	{
+		a /= v;
+		r /= v;
+		g /= v;
+		b /= v;
+		return *this;
+	}
+
+	f_pixel& square()
+	{
+		a *= a;
+		r *= r;
+		g *= g;
+		b *= b;
+		return *this;
+	}
+
+	f_pixel& abs()
+	{
+		a = fabsf(a);
+		r = fabsf(r);
+		g = fabsf(g);
+		b = fabsf(b);
+		return *this;
+	}
+
 	f_pixel() {}
 	float a, r, g, b;
 };
+
+static inline
+f_pixel operator + (const f_pixel& l, const f_pixel& r)
+{
+	f_pixel ret = l;
+	ret += r;
+	return ret;
+}
+
+static inline
+f_pixel operator - (const f_pixel& l, const f_pixel& r)
+{
+	f_pixel ret = l;
+	ret -= r;
+	return ret;
+}
+
+static inline
+f_pixel max(const f_pixel& l, const f_pixel& r)
+{
+	return f_pixel(
+		MAX(l.a, r.a),
+		MAX(l.r, r.r),
+		MAX(l.g, r.g),
+		MAX(l.b, r.b)
+		);
+}
+
+static inline
+f_pixel operator * (const f_pixel& l, float v)
+{
+	f_pixel ret = l;
+	ret *= v;
+	return ret;
+}
+
+static inline
+f_pixel operator / (const f_pixel& l, float v)
+{
+	f_pixel ret = l;
+	ret /= v;
+	return ret;
+}
 
 static inline
 bool operator == (const f_pixel& l, const f_pixel& r)

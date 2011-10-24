@@ -268,7 +268,7 @@ int main(int argc, char* argv[])
 static inline
 bool compare_popularity(const colormap_item& v1, const colormap_item& v2)
 {
-	return v1.popularity - v2.popularity;
+	return v1.popularity > v2.popularity;
 }
 
 void sort_palette(write_info* output_image, colormap* map)
@@ -474,45 +474,15 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 
 			/* Propagate Floyd-Steinberg error terms. */
 			if (fs_direction) {
-				thiserr[col + 2].a += (err.a * 7.0f) / 16.0f;
-				thiserr[col + 2].r += (err.r * 7.0f) / 16.0f;
-				thiserr[col + 2].g += (err.g * 7.0f) / 16.0f;
-				thiserr[col + 2].b += (err.b * 7.0f) / 16.0f;
-
-				nexterr[col	   ].a += (err.a * 3.0f) / 16.0f;
-				nexterr[col	   ].r += (err.r * 3.0f) / 16.0f;
-				nexterr[col	   ].g += (err.g * 3.0f) / 16.0f;
-				nexterr[col	   ].b += (err.b * 3.0f) / 16.0f;
-
-				nexterr[col + 1].a += (err.a * 5.0f) / 16.0f;
-				nexterr[col + 1].r += (err.r * 5.0f) / 16.0f;
-				nexterr[col + 1].g += (err.g * 5.0f) / 16.0f;
-				nexterr[col + 1].b += (err.b * 5.0f) / 16.0f;
-
-				nexterr[col + 2].a += (err.a	   ) / 16.0f;
-				nexterr[col + 2].r += (err.r	   ) / 16.0f;
-				nexterr[col + 2].g += (err.g	   ) / 16.0f;
-				nexterr[col + 2].b += (err.b	   ) / 16.0f;
+				thiserr[col + 2] += err * 7.0f / 16.0f;
+				nexterr[col	   ] += err * 3.0f / 16.0f;
+				nexterr[col + 1] += err * 5.0f / 16.0f;
+				nexterr[col + 2] += err        / 16.0f;
 			}else {
-				thiserr[col	   ].a += (err.a * 7.0f) / 16.0f;
-				thiserr[col	   ].r += (err.r * 7.0f) / 16.0f;
-				thiserr[col	   ].g += (err.g * 7.0f) / 16.0f;
-				thiserr[col	   ].b += (err.b * 7.0f) / 16.0f;
-
-				nexterr[col	   ].a += (err.a	   ) / 16.0f;
-				nexterr[col	   ].r += (err.r	   ) / 16.0f;
-				nexterr[col	   ].g += (err.g	   ) / 16.0f;
-				nexterr[col	   ].b += (err.b	   ) / 16.0f;
-
-				nexterr[col + 1].a += (err.a * 5.0f) / 16.0f;
-				nexterr[col + 1].r += (err.r * 5.0f) / 16.0f;
-				nexterr[col + 1].g += (err.g * 5.0f) / 16.0f;
-				nexterr[col + 1].b += (err.b * 5.0f) / 16.0f;
-
-				nexterr[col + 2].a += (err.a * 3.0f) / 16.0f;
-				nexterr[col + 2].r += (err.r * 3.0f) / 16.0f;
-				nexterr[col + 2].g += (err.g * 3.0f) / 16.0f;
-				nexterr[col + 2].b += (err.b * 3.0f) / 16.0f;
+				thiserr[col	   ] += err * 7.0f / 16.0f;
+				nexterr[col	   ] += err	       / 16.0f;
+				nexterr[col + 1] += err * 5.0f / 16.0f;
+				nexterr[col + 2] += err * 3.0f / 16.0f;
 			}
 
 			if (fs_direction) {
@@ -522,7 +492,7 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 				--col;
 				if (col < 0) break;
 			}
-		}while(1);
+		}while (1);
 		std::swap(thiserr, nexterr);
 		fs_direction = !fs_direction;
 	}
@@ -744,13 +714,7 @@ void viter_init(const colormap* map,
 			const colormap_item& nmi = newmap[i];
 			float value = 1.0 + nmi.popularity/2.0;
 			base_color_count[i] = value;
-			const f_pixel& nc = nmi.acolor;
-			base_color[i] = f_pixel(
-				nc.a * value,
-				nc.r * value,
-				nc.g * value,
-				nc.b * value
-			);
+			base_color[i] = nmi.acolor * value;
 		}
 	}
 }
@@ -764,20 +728,11 @@ void viter_update_color(f_pixel acolor, float value, colormap* map, int match,
 	float& acc = average_color_count[match];
 	const f_pixel& bc = base_color[match];
 	const float& bcc = base_color_count[match];
-	ac.a += acolor.a * value;
-	ac.r += acolor.r * value;
-	ac.g += acolor.g * value;
-	ac.b += acolor.b * value;
+	ac += acolor * value;
 	acc += value;
 
 	if (base_color) {
-		float tcc = acc + bcc;
-		map->palette[match].acolor = f_pixel(
-			(ac.a + bc.a) / tcc,
-			(ac.r + bc.r) / tcc,
-			(ac.g + bc.g) / tcc,
-			(ac.b + bc.b) / tcc
-		);
+		map->palette[match].acolor = (ac + bc) / (acc + bcc);
 	}
 }
 
@@ -788,13 +743,7 @@ void viter_finalize(colormap* map, const f_pixel* average_color, const float* av
 		colormap_item& pal = map->palette[i];
 		const float acc = average_color_count[i];
 		if (acc) {
-			const f_pixel& ac = average_color[i];
-			pal.acolor = f_pixel(
-				ac.a / acc,
-				ac.r / acc,
-				ac.g / acc,
-				ac.b / acc
-			);
+			pal.acolor = average_color[i] / acc;
 		}
 		pal.popularity = acc;
 	}
@@ -837,7 +786,7 @@ pngquant_error pngquant(read_info* input_image, write_info* output_image, bool f
 	do {
 		verbose_printf("  selecting colors");
 
-		colormap *newmap = mediancut(hist, min_opaque_val, reqcolors);
+		colormap* newmap = mediancut(hist, min_opaque_val, reqcolors);
 
 		verbose_printf("...");
 
