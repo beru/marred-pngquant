@@ -44,6 +44,8 @@ struct rgb_pixel {
 	unsigned char r, g, b, a;
 };
 
+
+
 struct f_pixel {
 	f_pixel(float a, float r, float g, float b)
 		:
@@ -174,6 +176,14 @@ f_pixel operator / (const f_pixel& l, float v)
 }
 
 static inline
+f_pixel operator / (const rgb_pixel& l, float v)
+{
+	f_pixel ret(l.a, l.r, l.g, l.b);
+	ret /= v;
+	return ret;
+}
+
+static inline
 bool operator == (const f_pixel& l, const f_pixel& r)
 {
 	return 1
@@ -215,7 +225,6 @@ f_pixel to_f(float gamma, rgb_pixel px)
 	return to_f_scalar(
 		gamma,
 		px / 255.0f
-		)
 	);
 }
 
