@@ -350,11 +350,13 @@ int best_color_index(f_pixel px, const colormap* map, float min_opaque_val, floa
 	return ind;
 }
 
-float remap_to_palette(read_info* input_image, write_info* output_image, colormap* map, float min_opaque_val, bool ie_bug)
+static
+float remap_to_palette(const read_info* input_image, write_info* output_image, colormap* map, float min_opaque_val, bool ie_bug)
 {
-	rgb_pixel** input_pixels = (rgb_pixel**) input_image->row_pointers;
+	const rgb_pixel** input_pixels = (const rgb_pixel**) input_image->row_pointers;
 	unsigned char** row_pointers = output_image->row_pointers;
-	int rows = input_image->height, cols = input_image->width;
+	int rows = input_image->height;
+	int cols = input_image->width;
 	double gamma = input_image->gamma;
 
 	int remapped_pixels=0;
@@ -367,9 +369,11 @@ float remap_to_palette(read_info* input_image, write_info* output_image, colorma
 	viter_init(map, &average_color[0], &average_color_count[0], NULL, NULL);
 
 	for (int row=0; row<rows; ++row) {
+		const rgb_pixel* input_row = input_pixels[row];
+		unsigned char* output_row = row_pointers[row];
 		for (int col=0; col<cols; ++col) {
 
-			f_pixel px = to_f(gamma, input_pixels[row][col]);
+			f_pixel px = to_f(gamma, input_row[col]);
 			int match;
 
 			if (px.a < 1.0/256.0) {
@@ -382,7 +386,7 @@ float remap_to_palette(read_info* input_image, write_info* output_image, colorma
 				remapping_error += diff;
 			}
 
-			row_pointers[row][col] = match;
+			output_row[col] = match;
 
 			viter_update_color(px, 1.0, map, match, &average_color[0], &average_color_count[0], NULL, NULL);
 		}
@@ -393,11 +397,13 @@ float remap_to_palette(read_info* input_image, write_info* output_image, colorma
 	return remapping_error / MAX(1,remapped_pixels);
 }
 
-float remap_to_palette_floyd(read_info* input_image, write_info* output_image, const colormap* map, float min_opaque_val, bool ie_bug)
+static
+float remap_to_palette_floyd(const read_info* input_image, write_info* output_image, const colormap* map, float min_opaque_val, bool ie_bug)
 {
-	rgb_pixel** input_pixels = (rgb_pixel**) input_image->row_pointers;
+	const rgb_pixel** input_pixels = (const rgb_pixel**) input_image->row_pointers;
 	unsigned char** row_pointers = output_image->row_pointers;
-	int rows = input_image->height, cols = input_image->width;
+	int rows = input_image->height;
+	int cols = input_image->width;
 	double gamma = input_image->gamma;
 
 	int remapped_pixels = 0;
@@ -431,7 +437,8 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 
 		int col = (fs_direction) ? 0 : (cols - 1);
 
-		rgb_pixel* input_row = input_pixels[row];
+		const rgb_pixel* input_row = input_pixels[row];
+		unsigned char* output_row = row_pointers[row];
 		do {
 			f_pixel px = to_f(gamma, input_row[col]);
 
@@ -461,7 +468,7 @@ float remap_to_palette_floyd(read_info* input_image, write_info* output_image, c
 				remapping_error += diff;
 			}
 
-			row_pointers[row][col] = ind;
+			output_row[col] = ind;
 
 			float colorimp = (3.0f + acolormap[ind].acolor.a) / 4.0f;
 			f_pixel xp = acolormap[ind].acolor;
