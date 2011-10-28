@@ -204,15 +204,15 @@ double color_weight(f_pixel median, const hist_item& h)
 	return sqrt(diff) * sqrt(h.adjusted_weight);
 }
 
-static colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val);
-static void adjust_histogram(hist_item* achv, const colormap* map, const box* bv,int boxes);
+std::vector<colormap_item> colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val);
+static void adjust_histogram(hist_item* achv, const std::vector<colormap_item>& map, const box* bv,int boxes);
 
 /*
  ** Here is the fun part, the median-cut colormap generator.  This is based
  ** on Paul Heckbert's paper, "Color Image Quantization for Frame Buffer
  ** Display," SIGGRAPH 1982 Proceedings, page 297.
  */
-colormap* mediancut(hist* hist, double min_opaque_val, int newcolors)
+std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newcolors)
 {
 	hist_item* achv = hist->achv;
 	std::vector<box> bv(newcolors);
@@ -287,14 +287,14 @@ colormap* mediancut(hist* hist, double min_opaque_val, int newcolors)
 		++boxes;
 	}
 
-	colormap* map = colormap_from_boxes(&bv[0], boxes, achv, min_opaque_val);
+	std::vector<colormap_item>& map = colormap_from_boxes(&bv[0], boxes, achv, min_opaque_val);
 	adjust_histogram(achv, map, &bv[0], boxes);
 
 	return map;
 }
 
 static
-colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val)
+std::vector<colormap_item> colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val)
 {
 	/*
 	 ** Ok, we've got enough boxes.	 Now choose a representative color for
@@ -304,10 +304,10 @@ colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, d
 	 ** the box - this is the method specified in Heckbert's paper.
 	 */
 
-	colormap* map = pam_colormap(boxes);
+	std::vector<colormap_item> map(boxes);
 
 	for (int bi=0; bi<boxes; ++bi) {
-		colormap_item& cm = map->palette[bi];
+		colormap_item& cm = map[bi];
 		const box& bx = bv[bi];
 		cm.acolor = averagepixels(bx.ind, bx.colors, achv, min_opaque_val);
 
@@ -323,11 +323,11 @@ colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, d
 
 /* increase histogram popularity by difference from the final color (this is used as part of feedback loop) */
 static
-void adjust_histogram(hist_item* achv, const colormap* map, const box* bv, int boxes)
+void adjust_histogram(hist_item* achv, const std::vector<colormap_item>& map, const box* bv, int boxes)
 {
 	for (int bi=0; bi<boxes; ++bi) {
 		const box& bx = bv[bi];
-		f_pixel pc = map->palette[bi].acolor;
+		f_pixel pc = map[bi].acolor;
 		for (int i=bx.ind; i<bx.ind+bx.colors; i++) {
 			hist_item& hist = achv[i];
 			hist.adjusted_weight *= 1.0 + sqrt(colordifference(pc, hist.acolor)) / 2.0;

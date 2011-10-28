@@ -272,11 +272,6 @@ struct colormap_item {
 	double popularity;
 };
 
-struct colormap {
-	colormap_item* palette;
-	int colors;
-};
-
 struct acolorhist_list_item {
 	f_pixel acolor;
 	acolorhist_list_item* next;
@@ -291,6 +286,4 @@ struct acolorhash_table {
 hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
 void pam_freeacolorhist(hist* h);
 
-colormap* pam_colormap(int colors);
-void pam_freecolormap(colormap* c);
 

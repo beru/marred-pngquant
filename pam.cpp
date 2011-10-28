@@ -236,18 +236,3 @@ void pam_freeacolorhist(hist* hist)
 	free(hist);
 }
 
-colormap* pam_colormap(int colors)
-{
-	colormap* map = (colormap*) malloc(sizeof(colormap));
-	map->palette = (colormap_item*) calloc(colors, sizeof(map->palette[0]));
-	map->colors = colors;
-	return map;
-}
-
-void pam_freecolormap(colormap* c)
-{
-	free(c->palette);
-	free(c);
-}
-
-
