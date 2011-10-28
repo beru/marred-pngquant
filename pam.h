@@ -18,15 +18,6 @@
 #  define MIN(a,b)	((a) < (b)? (a) : (b))
 #endif
 
-#ifdef __SSE3__
-#define USE_SSE
-#endif
-
-#ifdef USE_SSE
-#include <pmmintrin.h>
-#endif
-
-
 /* from pam.h */
 
 struct rgb_pixel {
@@ -47,7 +38,7 @@ struct rgb_pixel {
 
 
 struct f_pixel {
-	f_pixel(float a, float r, float g, float b)
+	f_pixel(double a, double r, double g, double b)
 		:
 		a(a),
 		r(r),
@@ -83,7 +74,7 @@ struct f_pixel {
 		return *this;
 	}
 
-	f_pixel& operator *= (float v)
+	f_pixel& operator *= (double v)
 	{
 		a *= v;
 		r *= v;
@@ -101,7 +92,7 @@ struct f_pixel {
 		return *this;
 	}
 
-	f_pixel& operator /= (float v)
+	f_pixel& operator /= (double v)
 	{
 		a /= v;
 		r /= v;
@@ -121,15 +112,15 @@ struct f_pixel {
 
 	f_pixel& abs()
 	{
-		a = fabsf(a);
-		r = fabsf(r);
-		g = fabsf(g);
-		b = fabsf(b);
+		a = fabs(a);
+		r = fabs(r);
+		g = fabs(g);
+		b = fabs(b);
 		return *this;
 	}
 
 	f_pixel() {}
-	float a, r, g, b;
+	double a, r, g, b;
 };
 
 static inline
@@ -160,7 +151,7 @@ f_pixel max(const f_pixel& l, const f_pixel& r)
 }
 
 static inline
-f_pixel operator * (const f_pixel& l, float v)
+f_pixel operator * (const f_pixel& l, double v)
 {
 	f_pixel ret = l;
 	ret *= v;
@@ -168,7 +159,7 @@ f_pixel operator * (const f_pixel& l, float v)
 }
 
 static inline
-f_pixel operator / (const f_pixel& l, float v)
+f_pixel operator / (const f_pixel& l, double v)
 {
 	f_pixel ret = l;
 	ret /= v;
@@ -176,7 +167,7 @@ f_pixel operator / (const f_pixel& l, float v)
 }
 
 static inline
-f_pixel operator / (const rgb_pixel& l, float v)
+f_pixel operator / (const rgb_pixel& l, double v)
 {
 	f_pixel ret(l.a, l.r, l.g, l.b);
 	ret /= v;
@@ -194,19 +185,19 @@ bool operator == (const f_pixel& l, const f_pixel& r)
 		;
 }
 
-static const float internal_gamma = 0.45455;
+static const double internal_gamma = 0.45455;
 
 /**
  Converts scalar color to internal gamma and premultiplied alpha.
  (premultiplied color space is much better for blending of semitransparent colors)
  */
 static inline
-f_pixel to_f_scalar(float gamma, f_pixel px)
+f_pixel to_f_scalar(double gamma, f_pixel px)
 {
 	if (gamma != internal_gamma) {
-		px.r = powf(px.r, internal_gamma/gamma);
-		px.g = powf(px.g, internal_gamma/gamma);
-		px.b = powf(px.b, internal_gamma/gamma);
+		px.r = pow(px.r, internal_gamma/gamma);
+		px.g = pow(px.g, internal_gamma/gamma);
+		px.b = pow(px.b, internal_gamma/gamma);
 	}
 
 	px.r *= px.a;
@@ -220,7 +211,7 @@ f_pixel to_f_scalar(float gamma, f_pixel px)
   Converts 8-bit RGB with given gamma to scalar RGB
  */
 static inline
-f_pixel to_f(float gamma, rgb_pixel px)
+f_pixel to_f(double gamma, rgb_pixel px)
 {
 	return to_f_scalar(
 		gamma,
@@ -229,21 +220,21 @@ f_pixel to_f(float gamma, rgb_pixel px)
 }
 
 static inline
-rgb_pixel to_rgb(float gamma, f_pixel px)
+rgb_pixel to_rgb(double gamma, f_pixel px)
 {
 	if (px.a < 1.0/256.0) {
 		rgb_pixel ret(0,0,0,0);
 		return ret;
 	}
 
-	float r,g,b,a;
+	double r,g,b,a;
 
 	gamma /= internal_gamma;
 
 	// 256, because numbers are in range 1..255.9999… rounded down
-	r = powf(px.r/px.a, gamma)*256.0f;
-	g = powf(px.g/px.a, gamma)*256.0f;
-	b = powf(px.b/px.a, gamma)*256.0f;
+	r = pow(px.r/px.a, gamma)*256.0;
+	g = pow(px.g/px.a, gamma)*256.0;
+	b = pow(px.b/px.a, gamma)*256.0;
 	a = px.a*256.0;
 
 	rgb_pixel ret;
@@ -256,42 +247,19 @@ rgb_pixel to_rgb(float gamma, f_pixel px)
 
 
 static inline
-float colordifference_stdc(f_pixel px, f_pixel py)
+double colordifference(f_pixel px, f_pixel py)
 {
 	f_pixel diff = px - py;
 	diff.square();
 	return diff.a * 3.0f + diff.r + diff.g + diff.b;
 }
 
-static inline
-float colordifference(f_pixel px, f_pixel py)
-{
-#ifdef USE_SSE
-	__m128 vpx = _mm_load_ps((const float*)&px);
-	__m128 vpy = _mm_load_ps((const float*)&py);
-
-	__m128 tmp = _mm_sub_ps(vpx, vpy); // t = px - py
-	tmp = _mm_mul_ps(tmp, tmp); // t = t * t
-	tmp = _mm_mul_ss(tmp, _mm_set_ss(3.0)); // alpha * 3.0
-
-	tmp = _mm_hadd_ps(tmp,tmp); // 0+1 2+3 0+1 2+3
-	__m128 rev = _mm_shuffle_ps(tmp, tmp, 0x1B); // reverses vector 2+3 0+1 2+3 0+1
-	tmp = _mm_add_ss(tmp, rev); // 0+1 + 2+3
-
-	float res = _mm_cvtss_f32(tmp);
-	assert(fabs(res - colordifference_stdc(px,py)) < 0.001);
-	return res;
-#else
-	return colordifference_stdc(px,py);
-#endif
-}
-
 /* from pamcmap.h */
 
 struct hist_item {
 	f_pixel acolor;
-	float adjusted_weight;
-	float perceptual_weight;
+	double adjusted_weight;
+	double perceptual_weight;
 };
 
 struct hist {
@@ -301,7 +269,7 @@ struct hist {
 
 struct colormap_item {
 	f_pixel acolor;
-	float popularity;
+	double popularity;
 };
 
 struct colormap {
@@ -312,7 +280,7 @@ struct colormap {
 struct acolorhist_list_item {
 	f_pixel acolor;
 	acolorhist_list_item* next;
-	float perceptual_weight;
+	double perceptual_weight;
 };
 
 struct acolorhash_table {

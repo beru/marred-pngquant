@@ -25,24 +25,24 @@
 #include <vector>
 #include <algorithm>
 
-#define index_of_channel(ch) (offsetof(f_pixel,ch)/sizeof(float))
+#define index_of_channel(ch) (offsetof(f_pixel,ch)/sizeof(double))
 
 static int weightedcompare_r(const void* ch1, const void* ch2);
 static int weightedcompare_g(const void* ch1, const void* ch2);
 static int weightedcompare_b(const void* ch1, const void* ch2);
 static int weightedcompare_a(const void* ch1, const void* ch2);
 
-static f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaque_val);
+static f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opaque_val);
 
 struct box {
-	float variance;
+	double variance;
 	int sum;
 	int ind;
 	int colors;
 };
 
 struct channelvariance {
-	channelvariance(int ch, float var)
+	channelvariance(int ch, double var)
 		:
 		chan(ch),
 		variance(var)
@@ -51,7 +51,7 @@ struct channelvariance {
 
 	channelvariance() {}
 	int chan;
-	float variance;
+	double variance;
 };
 
 static inline
@@ -65,8 +65,8 @@ static channelvariance channel_sort_order[4];
 static inline
 int weightedcompare_other(const f_pixel& p1, const f_pixel& p2)
 {
-	const float* c1p = (const float*) &p1;
-	const float* c2p = (const float*) &p2;
+	const double* c1p = (const double*) &p1;
+	const double* c2p = (const double*) &p2;
 	int chan;
 	
 	// other channels are sorted backwards
@@ -91,8 +91,8 @@ int weightedcompare_r(const void* ch1, const void* ch2)
 {
 	const f_pixel& p1 = ((const hist_item*)ch1)->acolor;
 	const f_pixel& p2 = ((const hist_item*)ch2)->acolor;
-	float c1 = p1.r;
-	float c2 = p2.r;
+	double c1 = p1.r;
+	double c2 = p2.r;
 	if (c1 > c2) return 1;
 	if (c1 < c2) return -1;
 
@@ -104,8 +104,8 @@ int weightedcompare_g(const void* ch1, const void* ch2)
 {
 	const f_pixel& p1 = ((const hist_item*)ch1)->acolor;
 	const f_pixel& p2 = ((const hist_item*)ch2)->acolor;
-	float c1 = p1.g;
-	float c2 = p2.g;
+	double c1 = p1.g;
+	double c2 = p2.g;
 	if (c1 > c2) return 1;
 	if (c1 < c2) return -1;
 
@@ -117,8 +117,8 @@ int weightedcompare_b(const void* ch1, const void* ch2)
 {
 	const f_pixel& p1 = ((const hist_item*)ch1)->acolor;
 	const f_pixel& p2 = ((const hist_item*)ch2)->acolor;
-	float c1 = p1.b;
-	float c2 = p2.b;
+	double c1 = p1.b;
+	double c2 = p2.b;
 	if (c1 > c2) return 1;
 	if (c1 < c2) return -1;
 
@@ -130,15 +130,15 @@ int weightedcompare_a(const void* ch1, const void* ch2)
 {
 	const f_pixel& p1 = ((const hist_item*)ch1)->acolor;
 	const f_pixel& p2 = ((const hist_item*)ch2)->acolor;
-	float c1 = p1.a;
-	float c2 = p2.a;
+	double c1 = p1.a;
+	double c2 = p2.a;
 	if (c1 > c2) return 1;
 	if (c1 < c2) return -1;
 
 	return weightedcompare_other(p1, p2);
 }
 
-f_pixel channel_variance(const hist_item achv[], int indx, int clrs, float min_opaque_val)
+f_pixel channel_variance(const hist_item achv[], int indx, int clrs, double min_opaque_val)
 {
 	f_pixel mean = averagepixels(indx, clrs, achv, min_opaque_val);
 	f_pixel variance(0,0,0,0);
@@ -181,12 +181,12 @@ static
 int best_splittable_box(const box* bv, int boxes)
 {
 	int bi = -1;
-	float maxsum = 0;
+	double maxsum = 0;
 	for (int i=0; i<boxes; i++) {
 		const box& b = bv[i];
 		if (b.colors < 2) continue;
 
-		float thissum = b.sum * b.variance;
+		double thissum = b.sum * b.variance;
 		if (thissum > maxsum) {
 			maxsum = thissum;
 			bi = i;
@@ -196,15 +196,15 @@ int best_splittable_box(const box* bv, int boxes)
 }
 
 static inline
-float color_weight(f_pixel median, const hist_item& h)
+double color_weight(f_pixel median, const hist_item& h)
 {
-	float diff = colordifference(median, h.acolor);
+	double diff = colordifference(median, h.acolor);
 	// if color is "good enough", don't split further
-	if (diff < 1.f/256.f) diff /= 2.f;
-	return sqrtf(diff) * sqrtf(h.adjusted_weight);
+	if (diff < 1.0/256.0) diff /= 2.0;
+	return sqrt(diff) * sqrt(h.adjusted_weight);
 }
 
-static colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, float min_opaque_val);
+static colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val);
 static void adjust_histogram(hist_item* achv, const colormap* map, const box* bv,int boxes);
 
 /*
@@ -212,7 +212,7 @@ static void adjust_histogram(hist_item* achv, const colormap* map, const box* bv
  ** on Paul Heckbert's paper, "Color Image Quantization for Frame Buffer
  ** Display," SIGGRAPH 1982 Proceedings, page 297.
  */
-colormap* mediancut(hist* hist, float min_opaque_val, int newcolors)
+colormap* mediancut(hist* hist, double min_opaque_val, int newcolors)
 {
 	hist_item* achv = hist->achv;
 	std::vector<box> bv(newcolors);
@@ -257,7 +257,7 @@ colormap* mediancut(hist* hist, float min_opaque_val, int newcolors)
 		f_pixel median = averagepixels(indx+(clrs-1)/2, clrs&1 ? 1 : 2, achv, min_opaque_val);
 
 		int lowersum = 0;
-		float halfvar = 0, lowervar = 0;
+		double halfvar = 0, lowervar = 0;
 		for (int i=0; i<clrs-1; i++) {
 			halfvar += color_weight(median, achv[indx+i]);
 		}
@@ -294,7 +294,7 @@ colormap* mediancut(hist* hist, float min_opaque_val, int newcolors)
 }
 
 static
-colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, float min_opaque_val)
+colormap* colormap_from_boxes(const box* bv, int boxes, const hist_item* achv, double min_opaque_val)
 {
 	/*
 	 ** Ok, we've got enough boxes.	 Now choose a representative color for
@@ -336,15 +336,15 @@ void adjust_histogram(hist_item* achv, const colormap* map, const box* bv, int b
 }
 
 static
-f_pixel averagepixels(int indx, int clrs, const hist_item achv[], float min_opaque_val)
+f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opaque_val)
 {
 	f_pixel csum(0,0,0,0);
-	float sum = 0;
-	float maxa = 0;
+	double sum = 0;
+	double maxa = 0;
 	int i;
 
 	for (i=0; i<clrs; ++i) {
-		float weight = 1.0f;
+		double weight = 1.0f;
 		const hist_item& hist = achv[indx + i];
 		f_pixel px = hist.acolor;
 		/* give more weight to colors that are further away from average

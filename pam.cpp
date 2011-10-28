@@ -99,7 +99,7 @@ hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows,
 }
 
 static inline
-f_pixel posterize_pixel(rgb_pixel px, int maxval, float gamma)
+f_pixel posterize_pixel(rgb_pixel px, int maxval, double gamma)
 {
 	if (maxval == 255) {
 		return to_f(gamma, px);
@@ -107,29 +107,29 @@ f_pixel posterize_pixel(rgb_pixel px, int maxval, float gamma)
 		return to_f_scalar(
 			gamma,
 			f_pixel(
-				(px.a * maxval / 255) / (float)maxval,
-				(px.r * maxval / 255) / (float)maxval,
-				(px.g * maxval / 255) / (float)maxval,
-				(px.b * maxval / 255) / (float)maxval
+				(px.a * maxval / 255) / (double)maxval,
+				(px.r * maxval / 255) / (double)maxval,
+				(px.g * maxval / 255) / (double)maxval,
+				(px.b * maxval / 255) / (double)maxval
 				)
 		);
 	}
 }
 
-float boost_from_contrast(f_pixel prev, f_pixel fpx, f_pixel next, f_pixel above, f_pixel below, float prev_boost)
+double boost_from_contrast(f_pixel prev, f_pixel fpx, f_pixel next, f_pixel above, f_pixel below, double prev_boost)
 {
-	f_pixel fpx2 = fpx * 2.0f;
+	f_pixel fpx2 = fpx * 2.0;
 	f_pixel c0 = (fpx2 - (prev + next)).abs();
 	f_pixel c1 = (fpx2 - (above + below)).abs();
 	f_pixel c = max(c0, c1); // maximum of vertical or horizontal contrast. It's better at picking up noise.
-	float contrast = c.r + c.g + c.b + 2.0f*c.a; // oddly a*2 works better than *3
+	double contrast = c.r + c.g + c.b + 2.0*c.a; // oddly a*2 works better than *3
 	// 0.6-contrast avoids boosting flat areas
-	contrast = MIN(1.0f, fabsf(0.6f-contrast/3.0f)) * (1.0f/0.6f);
+	contrast = MIN(1.0, fabsf(0.6-contrast/3.0)) * (1.0/0.6);
 	// I want only really high contrast (noise, edges) to influence
 	contrast *= contrast;
 
 	// it's "smeared" to spread influence of edges to neighboring pixels
-	return (contrast < prev_boost) ? contrast : (prev_boost+prev_boost+contrast)/3.0f;
+	return (contrast < prev_boost) ? contrast : (prev_boost+prev_boost+contrast)/3.0;
 }
 
 static
@@ -149,7 +149,7 @@ acolorhash_table* pam_computeacolorhash(const rgb_pixel*const* apixels, int cols
 		f_pixel curr = posterize_pixel(curline[0], maxval, gamma);
 		f_pixel next = posterize_pixel(curline[MIN(cols-1,1)], maxval, gamma);
 		f_pixel prev;
-		float boost = 0.5;
+		double boost = 0.5;
 		for (int col=0; col<cols; ++col) {
 			prev = curr;
 			curr = next;
