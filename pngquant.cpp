@@ -439,44 +439,26 @@ float remap_to_palette_floyd(const read_info* input_image, write_info* output_im
 			sa = px.a + thiserr[col + 1].a;
 
 			f_pixel err;
+			err.r = err.g = err.b = err.a = 0;
 			if (sr < 0) {
-				err.r = sr;
 				sr = 0;
 			}else if (sr > 1) {
-				err.r = sr - 1;
 				sr = 1;
-			}else {
-				err.r = 0;
 			}
-
 			if (sg < 0) {
-				err.g = sg;
 				sg = 0;
 			}else if (sg > 1) {
-				err.g = sg - 1;
 				sg = 1;
-			}else {
-				err.g = 0;
 			}
-
 			if (sb < 0) {
-				err.b = sb;
 				sb = 0;
 			}else if (sb > 1) {
-				err.b = sb - 1;
 				sb = 1;
-			}else {
-				err.b = 0;
 			}
-
 			if (sa < 0) {
-				err.a = sa;
 				sa = 0;
 			}else if (sa > 1) {
-				err.a = sa - 1;
 				sa = 1;
-			}else {
-				err.a = 0;
 			}
 
 			if (sa < 1.0/256.0) {
@@ -494,10 +476,10 @@ float remap_to_palette_floyd(const read_info* input_image, write_info* output_im
 			float colorimp = (3.0f + acolormap[ind].acolor.a) / 4.0f;
 			f_pixel xp = acolormap[ind].acolor;
 
-			err.r = (sr - xp.r) * colorimp;
-			err.g = (sg - xp.g) * colorimp;
-			err.b = (sb - xp.b) * colorimp;
-			err.a = (sa - xp.a);
+			err.r += (sr - xp.r) * colorimp;
+			err.g += (sg - xp.g) * colorimp;
+			err.b += (sb - xp.b) * colorimp;
+			err.a += (sa - xp.a);
 
 			/* Propagate Floyd-Steinberg error terms. */
 			if (fs_direction) {
