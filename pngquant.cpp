@@ -393,6 +393,14 @@ double remap_to_palette(
 	return remapping_error / MAX(1,remapped_pixels);
 }
 
+template <typename T>
+T limitValue(T val, T min, T max)
+{
+	if (val < min) return min;
+	if (max < val) return max;
+	return val;
+}
+
 static
 double remap_to_palette_floyd(
 	const read_info* input_image, write_info* output_image,
@@ -445,28 +453,10 @@ double remap_to_palette_floyd(
 			sb = px.b + thiserr[col + 1].b;
 			sa = px.a + thiserr[col + 1].a;
 
-			f_pixel err;
-			err.r = err.g = err.b = err.a = 0;
-			if (sr < 0) {
-				sr = 0;
-			}else if (sr > 1) {
-				sr = 1;
-			}
-			if (sg < 0) {
-				sg = 0;
-			}else if (sg > 1) {
-				sg = 1;
-			}
-			if (sb < 0) {
-				sb = 0;
-			}else if (sb > 1) {
-				sb = 1;
-			}
-			if (sa < 0) {
-				sa = 0;
-			}else if (sa > 1) {
-				sa = 1;
-			}
+			sr = limitValue(sr, 0.0, 1.0);
+			sg = limitValue(sg, 0.0, 1.0);
+			sb = limitValue(sb, 0.0, 1.0);
+			sa = limitValue(sa, 0.0, 1.0);
 
 			if (sa < 1.0/256.0) {
 				ind = transparent_ind;
@@ -482,11 +472,11 @@ double remap_to_palette_floyd(
 
 			double colorimp = (3.0f + map[ind].acolor.a) / 4.0f;
 			f_pixel xp = map[ind].acolor;
-
-			err.r += (sr - xp.r) * colorimp;
-			err.g += (sg - xp.g) * colorimp;
-			err.b += (sb - xp.b) * colorimp;
-			err.a += (sa - xp.a);
+			f_pixel err;
+			err.r = (sr - xp.r) * colorimp;
+			err.g = (sg - xp.g) * colorimp;
+			err.b = (sb - xp.b) * colorimp;
+			err.a = (sa - xp.a);
 
 			/* Propagate Floyd-Steinberg error terms. */
 			if (fs_direction) {
