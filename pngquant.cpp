@@ -506,37 +506,30 @@ pngquant_error read_image(const char* filename, bool using_stdin, read_info* inp
 	noise - approximation of areas with high-frequency noise, except straight edges. 1=flat, 0=noisy.
 	edges - noise map including all edges
  */
-void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double gamma, double** noiseP, double** edgesP)
+static
+void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double gamma, double* noise, double* edges)
 {
-	double* noise = (double*) malloc(sizeof(double)*cols*rows);
-	double* tmp = (double*) malloc(sizeof(double)*cols*rows);
-	double* edges = (double*) malloc(sizeof(double)*cols*rows);
+	std::vector<double> tmpVec(cols*rows);
+	double* tmp = &tmpVec[0];
 	
 	for (int j=0; j < rows; j++) {
 		f_pixel prev, curr = to_f(gamma, apixels[j][0]), next=curr;
+		const rgb_pixel* nextLine = apixels[max(0,j-1)];
+		const rgb_pixel* prevLine = apixels[min(rows-1,j+1)];
 		for (int i=0; i < cols; i++) {
-			prev=curr;
-			curr=next;
-			next = to_f(gamma, apixels[j][MIN(cols-1,i+1)]);
+			prev = curr;
+			curr = next;
+			next = to_f(gamma, apixels[j][min(cols-1,i+1)]);
 
-			double a = fabs(prev.a+next.a - curr.a*2.0),
-			r = fabs(prev.r+next.r - curr.r*2.0),
-			g = fabs(prev.g+next.g - curr.g*2.0),
-			b = fabs(prev.b+next.b - curr.b*2.0);
-
-			f_pixel nextl = to_f(gamma, apixels[MAX(0,j-1)][i]);
-			f_pixel prevl = to_f(gamma, apixels[MIN(rows-1,j+1)][i]);
-
-			double a1 = fabs(prevl.a+nextl.a - curr.a*2.0),
-			r1 = fabs(prevl.r+nextl.r - curr.r*2.0),
-			g1 = fabs(prevl.g+nextl.g - curr.g*2.0),
-			b1 = fabs(prevl.b+nextl.b - curr.b*2.0);
-
-			double horiz = MAX(MAX(a,r),MAX(g,b));
-			double vert = MAX(MAX(a1,r1),MAX(g1,b1));
-			double edge = MAX(horiz,vert);
+			f_pixel hd = (prev + next - curr * 2.0).abs();
+			f_pixel nextl = to_f(gamma, nextLine[i]);
+			f_pixel prevl = to_f(gamma, prevLine[i]);
+			f_pixel vd = (prevl + nextl - curr * 2.0).abs();
+			double horiz = max(hd.a, hd.r, hd.g, hd.b);
+			double vert = max(vd.a, vd.r, vd.g, vd.b);
+			double edge = max(horiz, vert);
 			double z = edge - fabs(horiz-vert)*.5;
-			z = 1.0 - MAX(z,MIN(horiz,vert));
+			z = 1.0 - max(z,min(horiz,vert));
 			z *= z;
 			z *= z;
 
@@ -544,6 +537,7 @@ void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double g
 			edges[j*cols+i] = 1.0 - edge;
 		}
 	}
+
 
 	max3(noise, tmp, cols, rows);
 	max3(tmp, noise, cols, rows);
@@ -558,12 +552,10 @@ void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double g
 
 	min3(edges, tmp, cols, rows);
 	max3(tmp, edges, cols, rows);
-	for (int i=0; i<cols*rows; i++) edges[i] = MIN(noise[i], edges[i]);
 
-	free(tmp);
-
-	*noiseP = noise;
-	*edgesP = edges;
+	for (int i=0; i<cols*rows; ++i) {
+		edges[i] = min(noise[i], edges[i]);
+	}
 }
 
 /**
@@ -579,10 +571,10 @@ void update_dither_map(write_info *output_image, double* edges)
 	const int height = output_image->height;
 	const unsigned char* pixels = output_image->indexed_data;
 
-	for (int row=0; row<height; row++) {
+	for (int row=0; row<height; ++row) {
 		unsigned char lastpixel = pixels[row*width];
 		int lastcol=0;
-		for(int col=1; col < width; col++)
+		for (int col=1; col<width; ++col)
 		{
 			unsigned char px = pixels[row*width + col];
 
@@ -623,22 +615,19 @@ pngquant_error pngquant(
 	min_opaque_val = modify_alpha(input_image);
 	assert(min_opaque_val>0);
 
-	double* noise = NULL;
-	double* edges = NULL;
+	std::vector<double> noise(input_image->width * input_image->height);
+	std::vector<double> edges(input_image->width * input_image->height);
 	if (speed_tradeoff < 8) {
 		contrast_maps(
 			(const rgb_pixel**)input_image->row_pointers,
 			input_image->width, input_image->height,
-			input_image->gamma, &noise, &edges
+			input_image->gamma, &noise[0], &edges[0]
 			);
 	}
 
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
-	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff, noise);
-	if (noise) {
-		free(noise);
-	}
+	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff, &noise[0]);
 	std::vector<colormap_item> acolormap;
 	double least_error = -1;
 	int feedback_loop_trials = 56 - 9*speed_tradeoff;
@@ -688,12 +677,12 @@ pngquant_error pngquant(
 			if (total_error > least_error*4) feedback_loop_trials -= 3;
 		}
 
-		verbose_printf("%d%%\n",100-MAX(0,(int)(feedback_loop_trials/percent)));
+		verbose_printf("%d%%\n",100-max(0,(int)(feedback_loop_trials/percent)));
 	}while (feedback_loop_trials > 0);
 
 	verbose_printf("  moving colormap towards local minimum\n");
 
-	int iterations = MAX(5-speed_tradeoff, 0);
+	int iterations = max(5-speed_tradeoff, 0);
 	iterations *= iterations;
 	for (int i=0; i<iterations; i++) {
 		viter_do_interation(hist, acolormap, min_opaque_val);
@@ -728,7 +717,7 @@ pngquant_error pngquant(
 	 */
 	verbose_printf("  mapping image to new colors...");
 
-	int use_dither_map = floyd && edges && speed_tradeoff < 6;
+	int use_dither_map = floyd && speed_tradeoff < 6;
 
 	if (!floyd || use_dither_map) {
 		// If no dithering is required, that's the final remapping.
@@ -736,7 +725,7 @@ pngquant_error pngquant(
 		double remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
 
 		if (use_dither_map) {
-			update_dither_map(output_image, edges);
+			update_dither_map(output_image, &edges[0]);
 		}
 
 		// remapping error from dithered image is absurd, so always non-dithered value is used
@@ -747,14 +736,10 @@ pngquant_error pngquant(
 	set_palette(output_image, acolormap);
 
 	if (floyd) {
-		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, edges);
+		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, &edges[0]);
 	}
 
 	verbose_printf("\n");
-
-	if (edges) {
-		free(edges);
-	}
 	
 	return SUCCESS;
 }

@@ -15,12 +15,41 @@
  */
 
 #include <vector>
-
 #include <math.h>
-#ifndef MAX
-#  define MAX(a,b)	((a) > (b)? (a) : (b))
-#  define MIN(a,b)	((a) < (b)? (a) : (b))
-#endif
+
+template <typename T>
+T min(T a, T b)
+{
+	if (a < b) {
+		return a;
+	}else {
+		return b;
+	}
+}
+
+template <typename T>
+T max(T a, T b)
+{
+	if (a < b) {
+		return b;
+	}else {
+		return a;
+	}
+}
+
+template <typename T>
+T max(T a, T b, T c, T d)
+{
+	return max(max(a, b), max(c, d));
+}
+
+template <typename T>
+T limitValue(T val, T min, T max)
+{
+	if (val < min) return min;
+	if (max < val) return max;
+	return val;
+}
 
 /* from pam.h */
 
@@ -147,10 +176,10 @@ static inline
 f_pixel max(const f_pixel& l, const f_pixel& r)
 {
 	return f_pixel(
-		MAX(l.a, r.a),
-		MAX(l.r, r.r),
-		MAX(l.g, r.g),
-		MAX(l.b, r.b)
+		max(l.a, r.a),
+		max(l.r, r.r),
+		max(l.g, r.g),
+		max(l.b, r.b)
 		);
 }
 
@@ -248,7 +277,6 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 	ret.a = a>=255 ? 255 : a;
 	return ret;
 }
-
 
 static inline
 double colordifference(f_pixel px, f_pixel py)

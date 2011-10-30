@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include "png.h"	/* libpng header; includes zlib.h */
 #include "rwpng.h"
+#include "dxor.h"
 
 int best_color_index(
 	f_pixel px,
@@ -151,15 +152,7 @@ double remap_to_palette(
 
 	viter_finalize(map, &average_color[0], &average_color_count[0]);
 
-	return remapping_error / MAX(1,remapped_pixels);
-}
-
-template <typename T>
-T limitValue(T val, T min, T max)
-{
-	if (val < min) return min;
-	if (max < val) return max;
-	return val;
+	return remapping_error / max(1,remapped_pixels);
 }
 
 /**
@@ -188,14 +181,14 @@ void remap_to_palette_floyd(
 	/* Initialize Floyd-Steinberg error vectors. */
 	thiserr = (f_pixel*) malloc((cols + 2) * sizeof(*thiserr));
 	nexterr = (f_pixel*) malloc((cols + 2) * sizeof(*thiserr));
-	srand(12345); /* deterministic dithering is better for comparing results */
+	sdxor156(12345); /* deterministic dithering is better for comparing results */
 
+	const double INVFACTOR = 1.0 / 255.0;
 	for (int col=0; col<cols+2; ++col) {
-		const double rand_max = RAND_MAX;
-		thiserr[col].r = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].g = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].b = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].a = ((double)rand() - rand_max/2.0)/rand_max/255.0;
+		thiserr[col].r = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].g = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].b = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].a = (dxor156() - 0.5) * INVFACTOR;
 	}
 
 	for (int row=0; row<rows; ++row) {
@@ -207,7 +200,7 @@ void remap_to_palette_floyd(
 		unsigned char* output_row = row_pointers[row];
 		do {
 			f_pixel px = to_f(gamma, input_row[col]);
-            double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
+			double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
 			
 			/* Use Floyd-Steinberg errors to adjust actual color. */
 			sr = px.r + thiserr[col + 1].r * dither_level;
@@ -239,7 +232,7 @@ void remap_to_palette_floyd(
 			// This prevents crazy geen pixels popping out of the blue (or red or black! ;)
 			if (err.r*err.r + err.g*err.g + err.b*err.b + err.a*err.a > 8.0/256.0) {
 				dither_level *= 0.5;
-            }
+			}
 			double colorimp = (3.0 + map[ind].acolor.a)/4.0 * dither_level;
 			err.r *= colorimp;
 			err.g *= colorimp;
@@ -251,10 +244,10 @@ void remap_to_palette_floyd(
 				thiserr[col + 2] += err * 7.0f / 16.0;
 				nexterr[col	   ] += err * 3.0f / 16.0;
 				nexterr[col + 1] += err * 5.0f / 16.0;
-				nexterr[col + 2] += err        / 16.0;
+				nexterr[col + 2] += err		   / 16.0;
 			}else {
 				thiserr[col	   ] += err * 7.0f / 16.0;
-				nexterr[col	   ] += err	       / 16.0;
+				nexterr[col	   ] += err		   / 16.0;
 				nexterr[col + 1] += err * 5.0f / 16.0;
 				nexterr[col + 2] += err * 3.0f / 16.0;
 			}

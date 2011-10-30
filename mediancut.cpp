@@ -359,7 +359,7 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opa
 		sum += weight;
 
 		/* find if there are opaque colors, in case we're supposed to preserve opacity exactly (ie_bug) */
-		maxa = std::max(maxa, px.a);
+		maxa = max(maxa, px.a);
 	}
 
 	/* Colors are in premultiplied alpha colorspace, so they'll blend OK
