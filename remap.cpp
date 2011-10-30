@@ -239,6 +239,21 @@ void remap_to_palette_floyd(
 			err.b *= colorimp;
 			err.a *= dither_level;
 			
+#if 1
+			// changed kernel after reading the paper : Reinstating FloydSteinberg: Improved Metrics for Quality Assessment of Error Diffusion Algorithms (Sam Hocevar, Gary Niger)
+			/* Propagate Floyd-Steinberg error terms. */
+			if (fs_direction) {
+				thiserr[col + 2] += err * 7.0 / 16.0;
+				nexterr[col	   ] += err * 4.0 / 16.0;
+				nexterr[col + 1] += err * 5.0 / 16.0;
+				nexterr[col + 2] += err	* 0.0 / 16.0;
+			}else {
+				thiserr[col	   ] += err * 7.0 / 16.0;
+				nexterr[col	   ] += err	* 0.0 / 16.0;
+				nexterr[col + 1] += err * 5.0 / 16.0;
+				nexterr[col + 2] += err * 4.0 / 16.0;
+			}
+#else
 			/* Propagate Floyd-Steinberg error terms. */
 			if (fs_direction) {
 				thiserr[col + 2] += err * 7.0f / 16.0;
@@ -251,6 +266,7 @@ void remap_to_palette_floyd(
 				nexterr[col + 1] += err * 5.0f / 16.0;
 				nexterr[col + 2] += err * 3.0f / 16.0;
 			}
+#endif
 
 			if (fs_direction) {
 				++col;
