@@ -62,14 +62,9 @@ void max3(const double* src, double* dst, int width, int height)
 			prev = curr;
 			curr = next;
 			next = row[i+1];
-			
-			double t1 = max(prev, next);
-			double t2 = max(nextrow[i], prevrow[i]);
-			*dst++ = max(curr,max(t1, t2));
+			*dst++ = max(curr, prev, next, nextrow[i], prevrow[i]);
 		}
-		double t1 = max(curr, next);
-		double t2 = max(nextrow[width-1], prevrow[width-1]);
-		*dst++ = max(t1, t2);
+		*dst++ = max(curr, next, nextrow[width-1], prevrow[width-1]);
 	}
 }
 
@@ -89,13 +84,9 @@ void min3(const double* src, double* dst, int width, int height)
 			curr = next;
 			next = row[i+1];
 			
-			double t1 = min(prev, next);
-			double t2 = min(nextrow[i], prevrow[i]);
-			*dst++ = min(curr, min(t1,t2));
+			*dst++ = min(curr, prev, next, nextrow[i], prevrow[i]);
 		}
-		double t1 = min(curr, next);
-		double t2 = min(nextrow[width-1], prevrow[width-1]);
-		*dst++ = min(t1,t2);
+		*dst++ = min(curr, next, nextrow[width-1], prevrow[width-1]);
 	}
 }
 

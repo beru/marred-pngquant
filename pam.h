@@ -28,6 +28,24 @@ T min(T a, T b)
 }
 
 template <typename T>
+T min(T a, T b, T c)
+{
+	return min(min(a,b), c);
+}
+
+template <typename T>
+T min(T a, T b, T c, T d)
+{
+	return min(min(a,b), min(c, d));
+}
+
+template <typename T>
+T min(T a, T b, T c, T d, T e)
+{
+	return min(min(a,b,c,d), e);
+}
+
+template <typename T>
 T max(T a, T b)
 {
 	if (a < b) {
@@ -38,9 +56,21 @@ T max(T a, T b)
 }
 
 template <typename T>
+T max(T a, T b, T c)
+{
+	return max(max(a,b), c);
+}
+
+template <typename T>
 T max(T a, T b, T c, T d)
 {
 	return max(max(a, b), max(c, d));
+}
+
+template <typename T>
+T max(T a, T b, T c, T d, T e)
+{
+	return max(max(a, b, c, d), e);
 }
 
 template <typename T>
