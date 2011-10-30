@@ -262,7 +262,7 @@ std::vector<colormap_item> mediancut(
 		for (int i=0; i<clrs-1; i++) {
 			halfvar += color_weight(median, hist[indx+i]);
 		}
-		halfvar /= 2.0f;
+		halfvar /= 2.0;
 
 		int break_at;
 		for (break_at=0; break_at<clrs-1; ++break_at) {
@@ -345,7 +345,7 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opa
 	int i;
 
 	for (i=0; i<clrs; ++i) {
-		double weight = 1.0f;
+		double weight = 1.0;
 		const hist_item& hist = achv[indx + i];
 		f_pixel px = hist.acolor;
 		/* give more weight to colors that are further away from average

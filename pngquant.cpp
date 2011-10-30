@@ -59,9 +59,11 @@
 #include "pam.h"
 #include "mediancut.h"
 #include "remap.h"
+#include "blur.h"
 
 #include <vector>
 #include <algorithm>
+
 
 pngquant_error pngquant(read_info* input_image, write_info* output_image, bool floyd, int reqcolors, int speed_tradeoff);
 pngquant_error read_image(const char* filename, bool using_stdin, read_info* input_image_p);
@@ -81,7 +83,7 @@ static
 void print_full_version(FILE* fd)
 {
 	fprintf(fd, "pngquant-marred, version %s, by berupon@gmail.com.\n", PNGQUANT_VERSION);
-	fprintf(fd, "origina pngquant, by porneL, Greg Roelofs, Kornel Lesinski.\n");
+	fprintf(fd, "origina pngquant, by Greg Roelofs, Kornel Lesinski(porneL).\n");
 	rwpng_version_info(fd);
 	fputs("\n", fd);
 }
@@ -394,7 +396,8 @@ pngquant_error write_image(
 
 static
 std::vector<hist_item> histogram(
-	const read_info* input_image, int reqcolors, int speed_tradeoff
+	const read_info* input_image, int reqcolors, int speed_tradeoff,
+	const double* importance_map
 	)
 {
 	int ignorebits = 0;
@@ -416,7 +419,7 @@ std::vector<hist_item> histogram(
 	verbose_printf("  making histogram...");
 	std::vector<hist_item> hist;
 	for (;;) {
-		hist = pam_computeacolorhist(input_pixels, cols, rows, gamma, maxcolors, ignorebits, speed_tradeoff < 9);
+		hist = pam_computeacolorhist(input_pixels, cols, rows, gamma, maxcolors, ignorebits, importance_map);
 		if (hist.size()) {
 			break;
 		}
@@ -498,6 +501,116 @@ pngquant_error read_image(const char* filename, bool using_stdin, read_info* inp
 	return SUCCESS;
 }
 
+/**
+ Builds two maps:
+	noise - approximation of areas with high-frequency noise, except straight edges. 1=flat, 0=noisy.
+	edges - noise map including all edges
+ */
+void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double gamma, double** noiseP, double** edgesP)
+{
+	double* noise = (double*) malloc(sizeof(double)*cols*rows);
+	double* tmp = (double*) malloc(sizeof(double)*cols*rows);
+	double* edges = (double*) malloc(sizeof(double)*cols*rows);
+	
+	for (int j=0; j < rows; j++) {
+		f_pixel prev, curr = to_f(gamma, apixels[j][0]), next=curr;
+		for (int i=0; i < cols; i++) {
+			prev=curr;
+			curr=next;
+			next = to_f(gamma, apixels[j][MIN(cols-1,i+1)]);
+
+			double a = fabs(prev.a+next.a - curr.a*2.0),
+			r = fabs(prev.r+next.r - curr.r*2.0),
+			g = fabs(prev.g+next.g - curr.g*2.0),
+			b = fabs(prev.b+next.b - curr.b*2.0);
+
+			f_pixel nextl = to_f(gamma, apixels[MAX(0,j-1)][i]);
+			f_pixel prevl = to_f(gamma, apixels[MIN(rows-1,j+1)][i]);
+
+			double a1 = fabs(prevl.a+nextl.a - curr.a*2.0),
+			r1 = fabs(prevl.r+nextl.r - curr.r*2.0),
+			g1 = fabs(prevl.g+nextl.g - curr.g*2.0),
+			b1 = fabs(prevl.b+nextl.b - curr.b*2.0);
+
+			double horiz = MAX(MAX(a,r),MAX(g,b));
+			double vert = MAX(MAX(a1,r1),MAX(g1,b1));
+			double edge = MAX(horiz,vert);
+			double z = edge - fabs(horiz-vert)*.5;
+			z = 1.0 - MAX(z,MIN(horiz,vert));
+			z *= z;
+			z *= z;
+
+			noise[j*cols+i] = z;
+			edges[j*cols+i] = 1.0 - edge;
+		}
+	}
+
+	max3(noise, tmp, cols, rows);
+	max3(tmp, noise, cols, rows);
+
+	blur(noise, tmp, noise, cols, rows, 3);
+
+	max3(noise, tmp, cols, rows);
+
+	min3(tmp, noise, cols, rows);
+	min3(noise, tmp, cols, rows);
+	min3(tmp, noise, cols, rows);
+
+	min3(edges, tmp, cols, rows);
+	max3(tmp, edges, cols, rows);
+	for (int i=0; i<cols*rows; i++) edges[i] = MIN(noise[i], edges[i]);
+
+	free(tmp);
+
+	*noiseP = noise;
+	*edgesP = edges;
+}
+
+/**
+ * Builds map of neighbor pixels mapped to the same palette entry
+ *
+ * For efficiency/simplicity it mainly looks for same consecutive pixels horizontally
+ * and peeks 1 pixel above/below. Full 2d algorithm doesn't improve it significantly.
+ * Correct flood fill doesn't have visually good properties.
+ */
+void update_dither_map(write_info *output_image, double* edges)
+{
+	const int width = output_image->width;
+	const int height = output_image->height;
+	const unsigned char* pixels = output_image->indexed_data;
+
+	for (int row=0; row<height; row++) {
+		unsigned char lastpixel = pixels[row*width];
+		int lastcol=0;
+		for(int col=1; col < width; col++)
+		{
+			unsigned char px = pixels[row*width + col];
+
+			if (px != lastpixel || col == width-1) {
+				double neighbor_count = 3.0 + col-lastcol;
+
+				int i=lastcol;
+				while (i < col) {
+					if (row > 0) {
+						unsigned char pixelabove = pixels[(row-1)*width + i];
+						if (pixelabove == lastpixel) neighbor_count += 1.0;
+					}
+					if (row < height-1) {
+						unsigned char pixelbelow = pixels[(row+1)*width + i];
+						if (pixelbelow == lastpixel) neighbor_count += 1.0;
+					}
+					i++;
+				}
+				
+				while (lastcol < col) {
+					edges[row*width + lastcol++] *= 1.0 - 3.0/neighbor_count;
+				}
+				lastpixel = px;
+			}
+		}
+	}
+}
+
 pngquant_error pngquant(
 	read_info* input_image, write_info* output_image,
 	bool floyd, int reqcolors, int speed_tradeoff
@@ -510,7 +623,22 @@ pngquant_error pngquant(
 	min_opaque_val = modify_alpha(input_image);
 	assert(min_opaque_val>0);
 
-	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff);
+	double* noise = NULL;
+	double* edges = NULL;
+	if (speed_tradeoff < 8) {
+		contrast_maps(
+			(const rgb_pixel**)input_image->row_pointers,
+			input_image->width, input_image->height,
+			input_image->gamma, &noise, &edges
+			);
+	}
+
+	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
+	// noise map does not include edges to avoid ruining anti-aliasing
+	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff, noise);
+	if (noise) {
+		free(noise);
+	}
 	std::vector<colormap_item> acolormap;
 	double least_error = -1;
 	int feedback_loop_trials = 56 - 9*speed_tradeoff;
@@ -538,7 +666,7 @@ pngquant_error pngquant(
 				hist_item& hi = hist[i];
 				int match = best_color_index(hi.acolor, newmap, min_opaque_val, &diff);
 				assert(diff >= 0);
-				assert(achv[i].perceptual_weight > 0);
+				assert(hi.perceptual_weight > 0);
 				total_error += diff * hi.perceptual_weight;
 
 				viter_update_color(hi.acolor, hi.perceptual_weight, newmap, match,
@@ -600,19 +728,33 @@ pngquant_error pngquant(
 	 */
 	verbose_printf("  mapping image to new colors...");
 
-	double remapping_error;
+	int use_dither_map = floyd && edges && speed_tradeoff < 6;
+
+	if (!floyd || use_dither_map) {
+		// If no dithering is required, that's the final remapping.
+		// If dithering (with dither map) is required, this image is used to find areas that require dithering
+		double remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
+
+		if (use_dither_map) {
+			update_dither_map(output_image, edges);
+		}
+
+		// remapping error from dithered image is absurd, so always non-dithered value is used
+		verbose_printf("MSE=%.3f", remapping_error*256.0);
+	}
+
+	// remapping above was the last chance to do voronoi iteration, hence the final palette is set after remapping
+	set_palette(output_image, acolormap);
 
 	if (floyd) {
-		// if dithering, save rounding error and stick to that palette
-		// otherwise palette can be improved after remapping
-		set_palette(output_image, acolormap);
-		remapping_error = remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val);
-	}else {
-		remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
-		set_palette(output_image, acolormap);
+		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, edges);
 	}
-	
-	verbose_printf("MSE=%.3f\n", remapping_error*256.0f);
+
+	verbose_printf("\n");
+
+	if (edges) {
+		free(edges);
+	}
 	
 	return SUCCESS;
 }

@@ -39,8 +39,9 @@ double remap_to_palette(
 	std::vector<colormap_item>& map, double min_opaque_val
 	);
 	
-double remap_to_palette_floyd(
+void remap_to_palette_floyd(
 	const read_info* input_image, write_info* output_image,
-	const std::vector<colormap_item>& map, double min_opaque_val
+	const std::vector<colormap_item>& map, double min_opaque_val,
+	const double* edge_map
 	);
 

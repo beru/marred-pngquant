@@ -219,7 +219,7 @@ f_pixel to_f(double gamma, rgb_pixel px)
 {
 	return to_f_scalar(
 		gamma,
-		px / 255.0f
+		px / 255.0
 	);
 }
 
@@ -255,7 +255,7 @@ double colordifference(f_pixel px, f_pixel py)
 {
 	f_pixel diff = px - py;
 	diff.square();
-	return diff.a * 3.0f + diff.r + diff.g + diff.b;
+	return diff.a * 3.0 + diff.r + diff.g + diff.b;
 }
 
 /* from pamcmap.h */
@@ -282,6 +282,10 @@ struct acolorhash_table {
 	acolorhist_list_item** buckets;
 };
 
-std::vector<hist_item> pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
+std::vector<hist_item> pam_computeacolorhist(
+	const rgb_pixel*const apixels[], int cols, int rows,
+	double gamma, int maxacolors, int ignorebits,
+	const double* importance_map
+	);
 
 

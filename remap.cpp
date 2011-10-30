@@ -162,9 +162,13 @@ T limitValue(T val, T min, T max)
 	return val;
 }
 
-double remap_to_palette_floyd(
+/**
+  Uses edge/noise map to apply dithering only to flat areas. Dithering on edges creates jagged lines, and noisy areas are "naturally" dithered.
+ */
+void remap_to_palette_floyd(
 	const read_info* input_image, write_info* output_image,
-	const std::vector<colormap_item>& map, double min_opaque_val
+	const std::vector<colormap_item>& map, double min_opaque_val,
+	const double* edge_map
 	)
 {
 	const rgb_pixel** input_pixels = (const rgb_pixel**) input_image->row_pointers;
@@ -172,9 +176,6 @@ double remap_to_palette_floyd(
 	int rows = input_image->height;
 	int cols = input_image->width;
 	double gamma = input_image->gamma;
-
-	int remapped_pixels = 0;
-	double remapping_error = 0;
 	
 	int ind = 0;
 	int transparent_ind = best_color_index(f_pixel(0,0,0,0), map, min_opaque_val, NULL);
@@ -206,12 +207,13 @@ double remap_to_palette_floyd(
 		unsigned char* output_row = row_pointers[row];
 		do {
 			f_pixel px = to_f(gamma, input_row[col]);
-
+            double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
+			
 			/* Use Floyd-Steinberg errors to adjust actual color. */
-			sr = px.r + thiserr[col + 1].r;
-			sg = px.g + thiserr[col + 1].g;
-			sb = px.b + thiserr[col + 1].b;
-			sa = px.a + thiserr[col + 1].a;
+			sr = px.r + thiserr[col + 1].r * dither_level;
+			sg = px.g + thiserr[col + 1].g * dither_level;
+			sb = px.b + thiserr[col + 1].b * dither_level;
+			sa = px.a + thiserr[col + 1].a * dither_level;
 
 			sr = limitValue(sr, 0.0, 1.0);
 			sg = limitValue(sg, 0.0, 1.0);
@@ -221,34 +223,40 @@ double remap_to_palette_floyd(
 			if (sa < 1.0/256.0) {
 				ind = transparent_ind;
 			}else {
-				double diff;
-				ind = best_color_index(f_pixel(sa,sr,sg,sb), map, min_opaque_val, &diff);
-
-				++remapped_pixels;
-				remapping_error += diff;
+				ind = best_color_index(f_pixel(sa,sr,sg,sb), map, min_opaque_val, 0);
 			}
 
 			output_row[col] = ind;
 
-			double colorimp = (3.0f + map[ind].acolor.a) / 4.0f;
 			f_pixel xp = map[ind].acolor;
 			f_pixel err;
-			err.r = (sr - xp.r) * colorimp;
-			err.g = (sg - xp.g) * colorimp;
-			err.b = (sb - xp.b) * colorimp;
+			err.r = (sr - xp.r);
+			err.g = (sg - xp.g);
+			err.b = (sb - xp.b);
 			err.a = (sa - xp.a);
-
+			
+			// If dithering error is crazy high, don't propagate it that much
+			// This prevents crazy geen pixels popping out of the blue (or red or black! ;)
+			if (err.r*err.r + err.g*err.g + err.b*err.b + err.a*err.a > 8.0/256.0) {
+				dither_level *= 0.5;
+            }
+			double colorimp = (3.0 + map[ind].acolor.a)/4.0 * dither_level;
+			err.r *= colorimp;
+			err.g *= colorimp;
+			err.b *= colorimp;
+			err.a *= dither_level;
+			
 			/* Propagate Floyd-Steinberg error terms. */
 			if (fs_direction) {
-				thiserr[col + 2] += err * 7.0f / 16.0f;
-				nexterr[col	   ] += err * 3.0f / 16.0f;
-				nexterr[col + 1] += err * 5.0f / 16.0f;
-				nexterr[col + 2] += err        / 16.0f;
+				thiserr[col + 2] += err * 7.0f / 16.0;
+				nexterr[col	   ] += err * 3.0f / 16.0;
+				nexterr[col + 1] += err * 5.0f / 16.0;
+				nexterr[col + 2] += err        / 16.0;
 			}else {
-				thiserr[col	   ] += err * 7.0f / 16.0f;
-				nexterr[col	   ] += err	       / 16.0f;
-				nexterr[col + 1] += err * 5.0f / 16.0f;
-				nexterr[col + 2] += err * 3.0f / 16.0f;
+				thiserr[col	   ] += err * 7.0f / 16.0;
+				nexterr[col	   ] += err	       / 16.0;
+				nexterr[col + 1] += err * 5.0f / 16.0;
+				nexterr[col + 2] += err * 3.0f / 16.0;
 			}
 
 			if (fs_direction) {
@@ -262,7 +270,5 @@ double remap_to_palette_floyd(
 		std::swap(thiserr, nexterr);
 		fs_direction = !fs_direction;
 	}
-
-	return remapping_error / MAX(1, remapped_pixels);
 }
 
