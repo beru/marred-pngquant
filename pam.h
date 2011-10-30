@@ -1,3 +1,5 @@
+#pragma once
+
 /**
  ** Copyright (C) 1989, 1991 by Jef Poskanzer.
  ** Copyright (C) 1997, 2000, 2002 by Greg Roelofs; based on an idea by

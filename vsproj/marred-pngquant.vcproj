@@ -189,6 +189,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\remap.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\rwpng.cpp"
 				>
 			</File>
@@ -204,6 +208,10 @@
 			</File>
 			<File
 				RelativePath="..\pam.h"
+				>
+			</File>
+			<File
+				RelativePath="..\remap.h"
 				>
 			</File>
 			<File
