@@ -331,9 +331,8 @@ int best_color_index(
 	int ind = 0;
 	double dist = colordifference(px, map[0].acolor);
 
-	for (int i=1; i<map.size(); i++) {
-		f_pixel itemCol = map[i].acolor;
-		double newdist = colordifference(px, itemCol);
+	for (size_t i=1; i<map.size(); ++i) {
+		double newdist = colordifference(px, map[i].acolor);
 		if (newdist < dist) {
 			ind = i;
 			dist = newdist;
@@ -594,9 +593,10 @@ pngquant_error write_image(
 }
 
 static
-hist* histogram(const read_info* input_image, int reqcolors, int speed_tradeoff)
+std::vector<hist_item> histogram(
+	const read_info* input_image, int reqcolors, int speed_tradeoff
+	)
 {
-	hist* hist;
 	int ignorebits = 0;
 	const rgb_pixel*const* input_pixels = (const rgb_pixel*const*)input_image->row_pointers;
 	int cols = input_image->width;
@@ -614,16 +614,17 @@ hist* histogram(const read_info* input_image, int reqcolors, int speed_tradeoff)
 	int maxcolors = (1<<17) + (1<<18)*(10-speed_tradeoff);
 
 	verbose_printf("  making histogram...");
+	std::vector<hist_item> hist;
 	for (;;) {
-
 		hist = pam_computeacolorhist(input_pixels, cols, rows, gamma, maxcolors, ignorebits, speed_tradeoff < 9);
-		if (hist) break;
-
+		if (hist.size()) {
+			break;
+		}
 		ignorebits++;
 		verbose_printf("too many colors!\n	scaling colors to improve clustering...");
 	}
 
-	verbose_printf("%d colors found\n", hist->size);
+	verbose_printf("%d colors found\n", hist.size());
 	return hist;
 }
 
@@ -707,7 +708,7 @@ void viter_init(
 	f_pixel* base_color, double* base_color_count
 	)
 {
-	for (int i=0; i<map.size(); i++) {
+	for (size_t i=0; i<map.size(); i++) {
 		average_color_count[i] = 0;
 		average_color[i] = f_pixel(0,0,0,0);
 	}
@@ -717,7 +718,7 @@ void viter_init(
 	// but to avoid first few matches moving the entry too much
 	// some base color and weight is added
 	if (base_color) {
-		for (int i=0; i<map.size(); i++) {
+		for (size_t i=0; i<map.size(); i++) {
 			const colormap_item& nmi = map[i];
 			double value = 1.0 + nmi.popularity/2.0;
 			base_color_count[i] = value;
@@ -751,7 +752,7 @@ void viter_finalize(
 	const f_pixel* average_color, const double* average_color_count
 	)
 {
-	for (int i=0; i<map.size(); i++) {
+	for (size_t i=0; i<map.size(); i++) {
 		colormap_item& pal = map[i];
 		const double acc = average_color_count[i];
 		if (acc) {
@@ -762,7 +763,7 @@ void viter_finalize(
 }
 
 void viter_do_interation(
-	const hist* hist,
+	const std::vector<hist_item>& hist,
 	std::vector<colormap_item>& map,
 	double min_opaque_val
 	)
@@ -770,13 +771,11 @@ void viter_do_interation(
 	std::vector<f_pixel> average_color(map.size());
 	std::vector<double> average_color_count(map.size());
 
-	hist_item* achv = hist->achv;
 	viter_init(map, &average_color[0], &average_color_count[0], NULL,NULL);
-
-	for (int j=0; j<hist->size; j++) {
-		const hist_item& hist = achv[j];
-		int match = best_color_index(hist.acolor, map, min_opaque_val, NULL);
-		viter_update_color(hist.acolor, hist.perceptual_weight, map, match, &average_color[0], &average_color_count[0], NULL, NULL);
+	for (size_t j=0; j<hist.size(); j++) {
+		const hist_item& hi = hist[j];
+		int match = best_color_index(hi.acolor, map, min_opaque_val, NULL);
+		viter_update_color(hi.acolor, hi.perceptual_weight, map, match, &average_color[0], &average_color_count[0], NULL, NULL);
 	}
 
 	viter_finalize(map, &average_color[0], &average_color_count[0]);
@@ -794,9 +793,7 @@ pngquant_error pngquant(
 	min_opaque_val = modify_alpha(input_image);
 	assert(min_opaque_val>0);
 
-	hist* hist = histogram(input_image, reqcolors, speed_tradeoff);
-	hist_item* achv = hist->achv;
-
+	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff);
 	std::vector<colormap_item> acolormap;
 	double least_error = -1;
 	int feedback_loop_trials = 56 - 9*speed_tradeoff;
@@ -819,17 +816,18 @@ pngquant_error pngquant(
 
 			viter_init(newmap, &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
 
-			for (int i=0; i<hist->size; i++) {
+			for (size_t i=0; i<hist.size(); i++) {
 				double diff;
-				int match = best_color_index(achv[i].acolor, newmap, min_opaque_val, &diff);
+				hist_item& hi = hist[i];
+				int match = best_color_index(hi.acolor, newmap, min_opaque_val, &diff);
 				assert(diff >= 0);
 				assert(achv[i].perceptual_weight > 0);
-				total_error += diff * achv[i].perceptual_weight;
+				total_error += diff * hi.perceptual_weight;
 
-				viter_update_color(achv[i].acolor, achv[i].perceptual_weight, newmap, match,
+				viter_update_color(hi.acolor, hi.perceptual_weight, newmap, match,
 								   &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
 
-				achv[i].adjusted_weight = (achv[i].perceptual_weight+achv[i].adjusted_weight) * (1.0+sqrt(diff));
+				hi.adjusted_weight = (hi.perceptual_weight+hi.adjusted_weight) * (1.0+sqrt(diff));
 			}
 		}
 
@@ -856,8 +854,6 @@ pngquant_error pngquant(
 		viter_do_interation(hist, acolormap, min_opaque_val);
 	}
 
-	pam_freeacolorhist(hist);
-
 	output_image->width = input_image->width;
 	output_image->height = input_image->height;
 	output_image->gamma = 0.45455;
@@ -874,7 +870,7 @@ pngquant_error pngquant(
 		return OUT_OF_MEMORY_ERROR;
 	}
 	
-	for (int row=0; row<output_image->height; ++row) {
+	for (size_t row=0; row<output_image->height; ++row) {
 		output_image->row_pointers[row] = output_image->indexed_data + row*output_image->width;
 	}
 

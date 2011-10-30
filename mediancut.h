@@ -2,4 +2,4 @@
 
 #include <vector>
 
-std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int reqcolors);
+std::vector<colormap_item> mediancut(std::vector<hist_item>& hist, double min_opaque_val, int reqcolors);

@@ -138,7 +138,7 @@ int weightedcompare_a(const void* ch1, const void* ch2)
 	return weightedcompare_other(p1, p2);
 }
 
-f_pixel channel_variance(const hist_item achv[], int indx, int clrs, double min_opaque_val)
+f_pixel channel_variance(const hist_item* achv, int indx, int clrs, double min_opaque_val)
 {
 	f_pixel mean = averagepixels(indx, clrs, achv, min_opaque_val);
 	f_pixel variance(0,0,0,0);
@@ -150,7 +150,7 @@ f_pixel channel_variance(const hist_item achv[], int indx, int clrs, double min_
 }
 
 static
-void sort_colors_by_variance(f_pixel variance, hist_item achv[], int indx, int clrs)
+void sort_colors_by_variance(f_pixel variance, hist_item* achv, int indx, int clrs)
 {
 	/*
 	 ** Sort dimensions by their variance, and then sort colors first by dimension with highest variance
@@ -212,19 +212,20 @@ static void adjust_histogram(hist_item* achv, const std::vector<colormap_item>& 
  ** on Paul Heckbert's paper, "Color Image Quantization for Frame Buffer
  ** Display," SIGGRAPH 1982 Proceedings, page 297.
  */
-std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newcolors)
+std::vector<colormap_item> mediancut(
+	std::vector<hist_item>& hist, double min_opaque_val, int newcolors
+	)
 {
-	hist_item* achv = hist->achv;
 	std::vector<box> bv(newcolors);
 
 	/*
 	 ** Set up the initial box.
 	 */
 	bv[0].ind = 0;
-	bv[0].colors = hist->size;
+	bv[0].colors = hist.size();
 	bv[0].variance = 1.0;
 	for (int i=0; i<bv[0].colors; i++)
-		bv[0].sum += achv[i].adjusted_weight;
+		bv[0].sum += hist[i].adjusted_weight;
 
 	int boxes = 1;
 
@@ -241,7 +242,7 @@ std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newc
 		int indx = bx.ind;
 		int clrs = bx.colors;
 
-		sort_colors_by_variance(channel_variance(achv, indx, clrs, min_opaque_val), achv, indx, clrs);
+		sort_colors_by_variance(channel_variance(&hist[0], indx, clrs, min_opaque_val), &hist[0], indx, clrs);
 
 		/*
 		 Classic implementation tries to get even number of colors or pixels in each subdivision.
@@ -254,12 +255,12 @@ std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newc
 		 Median used as expected value gives much better results than mean.
 		 */
 
-		f_pixel median = averagepixels(indx+(clrs-1)/2, clrs&1 ? 1 : 2, achv, min_opaque_val);
+		f_pixel median = averagepixels(indx+(clrs-1)/2, clrs&1 ? 1 : 2, &hist[0], min_opaque_val);
 
 		int lowersum = 0;
 		double halfvar = 0, lowervar = 0;
 		for (int i=0; i<clrs-1; i++) {
-			halfvar += color_weight(median, achv[indx+i]);
+			halfvar += color_weight(median, hist[indx+i]);
 		}
 		halfvar /= 2.0f;
 
@@ -267,9 +268,9 @@ std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newc
 		for (break_at=0; break_at<clrs-1; ++break_at) {
 			if (lowervar >= halfvar)
 				break;
-			const hist_item& hist = achv[indx+break_at];
-			lowervar += color_weight(median, hist);
-			lowersum += hist.adjusted_weight;
+			hist_item& hi = hist[indx+break_at];
+			lowervar += color_weight(median, hi);
+			lowersum += hi.adjusted_weight;
 		}
 
 		/*
@@ -287,8 +288,8 @@ std::vector<colormap_item> mediancut(hist* hist, double min_opaque_val, int newc
 		++boxes;
 	}
 
-	std::vector<colormap_item>& map = colormap_from_boxes(&bv[0], boxes, achv, min_opaque_val);
-	adjust_histogram(achv, map, &bv[0], boxes);
+	std::vector<colormap_item>& map = colormap_from_boxes(&bv[0], boxes, &hist[0], min_opaque_val);
+	adjust_histogram(&hist[0], map, &bv[0], boxes);
 
 	return map;
 }

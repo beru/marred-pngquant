@@ -19,7 +19,7 @@
 
 #include "pam.h"
 
-static hist* pam_acolorhashtoacolorhist(acolorhash_table* acht, int maxacolors);
+static std::vector<hist_item> pam_acolorhashtoacolorhist(acolorhash_table* acht, int maxacolors);
 static acolorhash_table* pam_computeacolorhash(const rgb_pixel* const* apixels, int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast, int* acolorsP);
 static void pam_freeacolorhash(acolorhash_table* acht);
 static acolorhash_table* pam_allocacolorhash(void);
@@ -87,15 +87,18 @@ unsigned long pam_hashapixel(f_pixel px)
 	return hash % HASH_SIZE;
 }
 
-hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast)
+std::vector<hist_item> pam_computeacolorhist(
+	const rgb_pixel*const apixels[],
+	int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast
+	)
 {
 	int hist_size = 0;
 	acolorhash_table* acht = pam_computeacolorhash(apixels, cols, rows, gamma, maxacolors, ignorebits, use_contrast, &hist_size);
-	if (!acht) return 0;
+	if (!acht) return std::vector<hist_item>();
 
-	hist* achv = pam_acolorhashtoacolorhist(acht, hist_size);
+	std::vector<hist_item> ret = pam_acolorhashtoacolorhist(acht, hist_size);
 	pam_freeacolorhash(acht);
-	return achv;
+	return ret;
 }
 
 static inline
@@ -201,18 +204,17 @@ acolorhash_table* pam_allocacolorhash()
 }
 
 static
-hist* pam_acolorhashtoacolorhist(acolorhash_table* acht, int hist_size)
+std::vector<hist_item> pam_acolorhashtoacolorhist(
+	acolorhash_table* acht, int hist_size
+	)
 {
+	std::vector<hist_item> ret(hist_size);
 	acolorhist_list_item* achl;
-	hist* ph = (hist*) malloc(sizeof(hist));
-	ph->achv = (hist_item*) malloc(hist_size * sizeof(ph->achv[0]));
-	ph->size = hist_size;
-
 	/* Loop through the hash table. */
 	int j = 0;
 	for (int i=0; i<HASH_SIZE; ++i)
 		for (achl=acht->buckets[i]; achl!=NULL; achl=achl->next) {
-			hist_item& hist = ph->achv[j];
+			hist_item& hist = ret[j];
 			/* Add the new entry. */
 			hist.acolor = achl->acolor;
 			hist.adjusted_weight = hist.perceptual_weight = achl->perceptual_weight;
@@ -220,7 +222,7 @@ hist* pam_acolorhashtoacolorhist(acolorhash_table* acht, int hist_size)
 		}
 
 	/* All done. */
-	return ph;
+	return ret;
 }
 
 
@@ -228,11 +230,5 @@ static
 void pam_freeacolorhash(acolorhash_table* acht)
 {
 	mempool_free(acht->mempool);
-}
-
-void pam_freeacolorhist(hist* hist)
-{
-	free(hist->achv);
-	free(hist);
 }
 

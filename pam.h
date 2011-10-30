@@ -12,6 +12,8 @@
  ** implied warranty.
  */
 
+#include <vector>
+
 #include <math.h>
 #ifndef MAX
 #  define MAX(a,b)	((a) > (b)? (a) : (b))
@@ -262,11 +264,6 @@ struct hist_item {
 	double perceptual_weight;
 };
 
-struct hist {
-	hist_item* achv;
-	int size;
-};
-
 struct colormap_item {
 	f_pixel acolor;
 	double popularity;
@@ -283,7 +280,6 @@ struct acolorhash_table {
 	acolorhist_list_item** buckets;
 };
 
-hist* pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
-void pam_freeacolorhist(hist* h);
+std::vector<hist_item> pam_computeacolorhist(const rgb_pixel*const apixels[], int cols, int rows, double gamma, int maxacolors, int ignorebits, int use_contrast);
 
 
