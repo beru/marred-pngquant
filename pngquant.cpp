@@ -31,6 +31,7 @@
 	  -ext new.png	set custom extension for output filename\n\
 	  -nofs			disable dithering (synonyms: -nofloyd, -ordered)\n\
 	  -verbose		print status messages (synonyms: -noquiet)\n\
+	  -speed N		speed/quality trade-off. 1=slow, 3=default, 10=fast & rough\n\
 \n\
    Quantizes one or more 32-bit RGBA PNGs to 8-bit (or smaller) RGBA-palette\n\
    PNGs using Floyd-Steinberg diffusion dithering (unless disabled).\n\
@@ -64,7 +65,7 @@
 #include <algorithm>
 
 
-pngquant_error pngquant(read_info* input_image, write_info* output_image, bool floyd, int reqcolors);
+pngquant_error pngquant(read_info* input_image, write_info* output_image, bool floyd, int reqcolors, int speed_tradeoff);
 pngquant_error read_image(const char* filename, bool using_stdin, read_info* input_image_p);
 pngquant_error write_image(write_info* output_image, const char* filename, const char* newext, bool force, bool using_stdin);
 
@@ -99,6 +100,7 @@ int main(int argc, char* argv[])
 	int reqcolors;
 	bool floyd = true;
 	bool force = false;
+	int speed_tradeoff = 3; // 1 max quality, 10 rough & fast. 3 is optimum.
 	bool using_stdin = false;
 	int latest_error=0, error_count=0, file_count=0;
 	const char* filename;
@@ -142,6 +144,14 @@ int main(int argc, char* argv[])
 				return MISSING_ARGUMENT;
 			}
 			newext = argv[argn];
+		}else if (0 == strcmp(argv[argn], "-s") ||
+				  0 == strcmp(argv[argn], "-speed")) {
+			++argn;
+			if (argn == argc) {
+				print_usage(stderr);
+				return MISSING_ARGUMENT;
+			}
+			speed_tradeoff = atoi(argv[argn]);
 		}else {
 			print_usage(stderr);
 			return MISSING_ARGUMENT;
@@ -163,6 +173,10 @@ int main(int argc, char* argv[])
 	}
 	if (reqcolors > 256) {
 		fputs("number of colors cannot be more than 256\n", stderr);
+		return INVALID_ARGUMENT;
+	}
+	if (speed_tradeoff < 1 || speed_tradeoff > 10) {
+		fputs("speed should be between 1 (slow) and 10 (fast)\n", stderr);
 		return INVALID_ARGUMENT;
 	}
 	++argn;
@@ -192,7 +206,7 @@ int main(int argc, char* argv[])
 		retval = read_image(filename,using_stdin, &input_image);
 
 		if (!retval) {
-			retval = pngquant(&input_image, &output_image, floyd, reqcolors);
+			retval = pngquant(&input_image, &output_image, floyd, reqcolors, speed_tradeoff);
 		}
 
 		/* now we're done with the INPUT data and row_pointers, so free 'em */
@@ -382,7 +396,7 @@ pngquant_error write_image(
 
 static
 std::vector<hist_item> histogram(
-	const read_info* input_image, int reqcolors,
+	const read_info* input_image, int reqcolors, int speed_tradeoff,
 	const double* importance_map
 	)
 {
@@ -399,7 +413,8 @@ std::vector<hist_item> histogram(
 	** coherence and try again.
 	*/
 
-	int maxcolors = (1<<17) + (1<<18)*(10-1);
+	if (speed_tradeoff > 7) ignorebits++;
+	int maxcolors = (1<<17) + (1<<18)*(10-speed_tradeoff);
 
 	verbose_printf("  making histogram...");
 	std::vector<hist_item> hist;
@@ -550,7 +565,7 @@ void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double g
  * and peeks 1 pixel above/below. Full 2d algorithm doesn't improve it significantly.
  * Correct flood fill doesn't have visually good properties.
  */
-void update_dither_map(write_info* output_image, double* edges)
+void update_dither_map(write_info *output_image, double* edges)
 {
 	const int width = output_image->width;
 	const int height = output_image->height;
@@ -592,7 +607,7 @@ void update_dither_map(write_info* output_image, double* edges)
 
 pngquant_error pngquant(
 	read_info* input_image, write_info* output_image,
-	bool floyd, int reqcolors
+	bool floyd, int reqcolors, int speed_tradeoff
 	)
 {
 	double min_opaque_val;
@@ -604,18 +619,20 @@ pngquant_error pngquant(
 
 	std::vector<double> noise(input_image->width * input_image->height);
 	std::vector<double> edges(input_image->width * input_image->height);
-	contrast_maps(
-		(const rgb_pixel**)input_image->row_pointers,
-		input_image->width, input_image->height,
-		input_image->gamma, &noise[0], &edges[0]
-		);
+	if (speed_tradeoff < 8) {
+		contrast_maps(
+			(const rgb_pixel**)input_image->row_pointers,
+			input_image->width, input_image->height,
+			input_image->gamma, &noise[0], &edges[0]
+			);
+	}
 
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
-	std::vector<hist_item> hist = histogram(input_image, reqcolors, &noise[0]);
+	std::vector<hist_item> hist = histogram(input_image, reqcolors, speed_tradeoff, &noise[0]);
 	std::vector<colormap_item> acolormap;
 	double least_error = -1;
-	int feedback_loop_trials = 56 - 9;
+	int feedback_loop_trials = 56 - 9*speed_tradeoff;
 	const double percent = (double)(feedback_loop_trials>0?feedback_loop_trials:1)/100.0;
 
 	do {
@@ -667,7 +684,7 @@ pngquant_error pngquant(
 
 	verbose_printf("  moving colormap towards local minimum\n");
 
-	int iterations = max(5-1, 0);
+	int iterations = max(5-speed_tradeoff, 0);
 	iterations *= iterations;
 	for (int i=0; i<iterations; i++) {
 		viter_do_interation(hist, acolormap, min_opaque_val);
@@ -702,15 +719,21 @@ pngquant_error pngquant(
 	 */
 	verbose_printf("  mapping image to new colors...");
 
-	// If no dithering is required, that's the final remapping.
-	// If dithering (with dither map) is required, this image is used to find areas that require dithering
-	double remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
+	int use_dither_map = floyd && speed_tradeoff < 6;
 
-	update_dither_map(output_image, &edges[0]);
+	if (!floyd || use_dither_map) {
+		// If no dithering is required, that's the final remapping.
+		// If dithering (with dither map) is required, this image is used to find areas that require dithering
+		double remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
 
-	// remapping error from dithered image is absurd, so always non-dithered value is used
-	verbose_printf("MSE=%.3f", remapping_error*256.0);
-	
+		if (use_dither_map) {
+			update_dither_map(output_image, &edges[0]);
+		}
+
+		// remapping error from dithered image is absurd, so always non-dithered value is used
+		verbose_printf("MSE=%.3f", remapping_error*256.0);
+	}
+
 	// remapping above was the last chance to do voronoi iteration, hence the final palette is set after remapping
 	set_palette(output_image, acolormap);
 
