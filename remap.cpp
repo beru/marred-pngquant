@@ -175,7 +175,6 @@ void remap_to_palette_floyd(
 
 	f_pixel* thiserr = NULL;
 	f_pixel* nexterr = NULL;
-	double sr=0, sg=0, sb=0, sa=0;
 	int fs_direction = 1;
 
 	/* Initialize Floyd-Steinberg error vectors. */
@@ -198,35 +197,27 @@ void remap_to_palette_floyd(
 
 		const rgb_pixel* input_row = input_pixels[row];
 		unsigned char* output_row = row_pointers[row];
+		const double* pEdge = &edge_map[row*cols];
 		do {
 			f_pixel px = to_f(gamma, input_row[col]);
-			double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
+			double dither_level = pEdge[col];
 			
 			/* Use Floyd-Steinberg errors to adjust actual color. */
-			sr = px.r + thiserr[col + 1].r * dither_level;
-			sg = px.g + thiserr[col + 1].g * dither_level;
-			sb = px.b + thiserr[col + 1].b * dither_level;
-			sa = px.a + thiserr[col + 1].a * dither_level;
+			f_pixel tmp = px + thiserr[col + 1] * dither_level;
+			tmp.r = limitValue(tmp.r, 0.0, 1.0);
+			tmp.g = limitValue(tmp.g, 0.0, 1.0);
+			tmp.b = limitValue(tmp.b, 0.0, 1.0);
+			tmp.a = limitValue(tmp.a, 0.0, 1.0);
 
-			sr = limitValue(sr, 0.0, 1.0);
-			sg = limitValue(sg, 0.0, 1.0);
-			sb = limitValue(sb, 0.0, 1.0);
-			sa = limitValue(sa, 0.0, 1.0);
-
-			if (sa < 1.0/256.0) {
+			if (tmp.a < 1.0/256.0) {
 				ind = transparent_ind;
 			}else {
-				ind = best_color_index(f_pixel(sa,sr,sg,sb), map, min_opaque_val, 0);
+				ind = best_color_index(tmp, map, min_opaque_val, 0);
 			}
 
 			output_row[col] = ind;
 
-			f_pixel xp = map[ind].acolor;
-			f_pixel err;
-			err.r = (sr - xp.r);
-			err.g = (sg - xp.g);
-			err.b = (sb - xp.b);
-			err.a = (sa - xp.a);
+			f_pixel err = tmp - map[ind].acolor;
 			
 			// If dithering error is crazy high, don't propagate it that much
 			// This prevents crazy geen pixels popping out of the blue (or red or black! ;)

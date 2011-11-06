@@ -309,9 +309,56 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 }
 
 static inline
+f_pixel rgb2xyz(f_pixel rgb)
+{
+	f_pixel xyz;
+	xyz.r = 0.412453 * rgb.r + 0.35758 * rgb.g + 0.180423 * rgb.b; // X
+	xyz.g = 0.212671 * rgb.r + 0.71516 * rgb.g + 0.072169 * rgb.b; // Y
+	xyz.b = 0.019334 * rgb.r + 0.119193 * rgb.g + 0.950227 * rgb.b; // Z
+	xyz.a = rgb.a;
+	return xyz;
+}
+
+static inline
+f_pixel xyz2lab(f_pixel xyz)
+{
+	f_pixel f;
+	f_pixel lab;
+	// fx
+	if (xyz.r <= 0.008856) {
+		f.r = (903.3 * xyz.r + 16) / 116;
+	}else {
+		f.r = pow(xyz.r, 0.3333);
+	}
+	// fy
+	if (xyz.r <= 0.008856) {
+		f.g = (903.3 * xyz.g + 16) / 116;
+	}else {
+		f.g = pow(xyz.g, 0.3333);
+	}
+	// fz
+	if (xyz.r <= 0.008856) {
+		f.b = (903.3 * xyz.b + 16) / 116;
+	}else {
+		f.b = pow(xyz.b, 0.3333);
+	}
+	lab.r = 1.16 * f.g - 0.16;
+	lab.g = 5.0 * (f.r * f.g);
+	lab.b = 2.0 * (f.g * f.b);
+	lab.a = xyz.a;
+	return lab;
+}
+
+static inline
+f_pixel rgb2lab(f_pixel rgb)
+{
+	return xyz2lab(rgb2xyz(rgb));
+}
+
+static inline
 double colordifference(f_pixel px, f_pixel py)
 {
-	f_pixel diff = px - py;
+	f_pixel diff = rgb2lab(px) - rgb2lab(py);
 	diff.square();
 	return diff.a * 3.0 + diff.r + diff.g + diff.b;
 }
