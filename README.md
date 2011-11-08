@@ -1,6 +1,6 @@
 #marred-PNGquant
 
-This is a [fork](https://github.com/beru/marred-pngquant) of [improved-pngquant] that is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org/pub/png/apps/pngquant.html).
+This is a [fork](https://github.com/beru/marred-pngquant) of [improved-pngquant](https://github.com/pornel/improved-pngquant) that is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org/pub/png/apps/pngquant.html).
 
 original README.md below
 ------------------
