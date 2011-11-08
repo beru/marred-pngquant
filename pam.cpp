@@ -115,12 +115,7 @@ f_pixel posterize_pixel(rgb_pixel px, int maxval, double gamma)
 	}else {
 		return to_f_scalar(
 			gamma,
-			f_pixel(
-				(px.a * maxval / 255) / (double)maxval,
-				(px.r * maxval / 255) / (double)maxval,
-				(px.g * maxval / 255) / (double)maxval,
-				(px.b * maxval / 255) / (double)maxval
-				)
+			(px * maxval / 255) / (double)maxval
 		);
 	}
 }
@@ -140,12 +135,9 @@ acolorhash_table* pam_computeacolorhash(
 
 	/* Go through the entire image, building a hash table of colors. */
 	for (int row=0; row<rows; ++row) {
-		double boost = 1.0;
 		const rgb_pixel* curline = apixels[row];
 		for (int col=0; col<cols; ++col) {
-			if (importance_map) {
-				boost = 0.5 + *importance_map++;
-			}
+			double boost = 0.5 + *importance_map++;
 			f_pixel curr = posterize_pixel(curline[col], maxval, gamma);
 			int hash = pam_hashapixel(curr);
 			for (achl=buckets[hash]; achl!=NULL; achl=achl->next) {

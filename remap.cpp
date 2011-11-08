@@ -6,9 +6,9 @@
 #include "dxor.h"
 
 int best_color_index(
-	f_pixel px,
 	const std::vector<colormap_item>& map,
-	double min_opaque_val, double* dist_out
+	f_pixel px,
+	double* dist_out
 	)
 {
 	int ind = 0;
@@ -99,7 +99,7 @@ void viter_do_interation(
 	viter_init(map, &average_color[0], &average_color_count[0], NULL,NULL);
 	for (size_t j=0; j<hist.size(); j++) {
 		const hist_item& hi = hist[j];
-		int match = best_color_index(hi.acolor, map, min_opaque_val, NULL);
+		int match = best_color_index(map, hi.acolor, NULL);
 		viter_update_color(hi.acolor, hi.perceptual_weight, map, match, &average_color[0], &average_color_count[0], NULL, NULL);
 	}
 
@@ -120,7 +120,7 @@ double remap_to_palette(
 	int remapped_pixels=0;
 	double remapping_error=0;
 	
-	int transparent_ind = best_color_index(f_pixel(0,0,0,0), map, min_opaque_val, NULL);
+	int transparent_ind = best_color_index(map, f_pixel(0,0,0,0), NULL);
 
 	std::vector<f_pixel> average_color(map.size());
 	std::vector<double> average_color_count(map.size());
@@ -138,7 +138,7 @@ double remap_to_palette(
 				match = transparent_ind;
 			}else {
 				double diff;
-				match = best_color_index(px, map,min_opaque_val, &diff);
+				match = best_color_index(map, px, &diff);
 
 				remapped_pixels++;
 				remapping_error += diff;
@@ -171,7 +171,7 @@ void remap_to_palette_floyd(
 	double gamma = input_image->gamma;
 	
 	int ind = 0;
-	int transparent_ind = best_color_index(f_pixel(0,0,0,0), map, min_opaque_val, NULL);
+	int transparent_ind = best_color_index(map, f_pixel(0,0,0,0), NULL);
 
 	f_pixel* thiserr = NULL;
 	f_pixel* nexterr = NULL;
@@ -212,7 +212,7 @@ void remap_to_palette_floyd(
 			if (tmp.a < 1.0/256.0) {
 				ind = transparent_ind;
 			}else {
-				ind = best_color_index(tmp, map, min_opaque_val, 0);
+				ind = best_color_index(map, tmp, 0);
 			}
 
 			output_row[col] = ind;

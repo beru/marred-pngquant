@@ -64,7 +64,6 @@
 #include <vector>
 #include <algorithm>
 
-
 pngquant_error pngquant(read_info* input_image, write_info* output_image, bool floyd, int reqcolors, int speed_tradeoff);
 pngquant_error read_image(const char* filename, bool using_stdin, read_info* input_image_p);
 pngquant_error write_image(write_info* output_image, const char* filename, const char* newext, bool force, bool using_stdin);
@@ -655,7 +654,7 @@ pngquant_error pngquant(
 			for (size_t i=0; i<hist.size(); i++) {
 				double diff;
 				hist_item& hi = hist[i];
-				int match = best_color_index(hi.acolor, newmap, min_opaque_val, &diff);
+				int match = best_color_index(newmap, hi.acolor, &diff);
 				assert(diff >= 0);
 				assert(hi.perceptual_weight > 0);
 				total_error += diff * hi.perceptual_weight;

@@ -7,9 +7,9 @@ struct read_info;
 struct write_info;
 
 int best_color_index(
-	f_pixel px,
 	const std::vector<colormap_item>& map,
-	double min_opaque_val, double* dist_out
+	f_pixel px,
+	double* dist_out
 	);
 
 void viter_init(

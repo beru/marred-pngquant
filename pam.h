@@ -96,7 +96,41 @@ struct rgb_pixel {
 	rgb_pixel() {}
 
 	unsigned char r, g, b, a;
+
+	rgb_pixel& operator *= (int v)
+	{
+		r *= v;
+		g *= v;
+		b *= v;
+		a *= v;
+		return *this;
+	}
+
+	rgb_pixel& operator /= (int v)
+	{
+		r /= v;
+		g /= v;
+		b /= v;
+		a /= v;
+		return *this;
+	}
 };
+
+static inline
+rgb_pixel operator * (const rgb_pixel& l, int v)
+{
+	rgb_pixel ret = l;
+	ret *= v;
+	return ret;
+}
+
+static inline
+rgb_pixel operator / (const rgb_pixel& l, int v)
+{
+	rgb_pixel ret = l;
+	ret /= v;
+	return ret;
+}
 
 
 
@@ -322,29 +356,33 @@ f_pixel rgb2xyz(f_pixel rgb)
 static inline
 f_pixel xyz2lab(f_pixel xyz)
 {
+	// http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Lab.html
+	static const double K = 24389.0 / 27.0;
+	static const double S = 216.0 / 24389.0;
+	xyz *= 100.0;
 	f_pixel f;
 	f_pixel lab;
 	// fx
-	if (xyz.r <= 0.008856) {
-		f.r = (903.3 * xyz.r + 16) / 116;
+	if (xyz.r <= S) {
+		f.r = (K * xyz.r + 16) / 116;
 	}else {
 		f.r = pow(xyz.r, 0.3333);
 	}
 	// fy
-	if (xyz.r <= 0.008856) {
-		f.g = (903.3 * xyz.g + 16) / 116;
+	if (xyz.g <= S) {
+		f.g = (K * xyz.g + 16) / 116;
 	}else {
 		f.g = pow(xyz.g, 0.3333);
 	}
 	// fz
-	if (xyz.r <= 0.008856) {
-		f.b = (903.3 * xyz.b + 16) / 116;
+	if (xyz.b <= S) {
+		f.b = (K * xyz.b + 16) / 116;
 	}else {
 		f.b = pow(xyz.b, 0.3333);
 	}
-	lab.r = 1.16 * f.g - 0.16;
-	lab.g = 5.0 * (f.r * f.g);
-	lab.b = 2.0 * (f.g * f.b);
+	lab.r = 116 * f.g -16;
+	lab.g = 500 * (f.r - f.g);
+	lab.b = 200 * (f.g - f.b);
 	lab.a = xyz.a;
 	return lab;
 }
@@ -358,7 +396,12 @@ f_pixel rgb2lab(f_pixel rgb)
 static inline
 double colordifference(f_pixel px, f_pixel py)
 {
+//	f_pixel diff = px - py;
+//	f_pixel diff = rgb2xyz(px) - rgb2xyz(py);
 	f_pixel diff = rgb2lab(px) - rgb2lab(py);
+//	diff.square();
+	diff.g *= 0.22; // adjust this value to adjust balance between chrominance and luminance..
+	diff.b *= 0.22; // adjust this value to adjust balance between chrominance and luminance..
 	diff.square();
 	return diff.a * 3.0 + diff.r + diff.g + diff.b;
 }
