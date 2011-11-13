@@ -441,10 +441,7 @@ double modify_alpha(read_info* input_image)
 	const int rows = input_image->height;
 	const int cols = input_image->width;
 	double gamma = input_image->gamma;
-	double min_opaque_val;
-	double almost_opaque_val;
-
-	min_opaque_val = almost_opaque_val = 1.0;
+	double min_opaque_val = 1.0;
 
 	for (int row=0; row<rows; ++row) {
 		pP = input_pixels[row];
@@ -506,23 +503,26 @@ pngquant_error read_image(const char* filename, bool using_stdin, read_info* inp
 	edges - noise map including all edges
  */
 static
-void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double gamma, double* noise, double* edges)
+void contrast_maps(const f_pixel* pixels, size_t cols, size_t rows, double* noise, double* edges)
 {
 	std::vector<double> tmpVec(cols*rows);
 	double* tmp = &tmpVec[0];
 	
-	for (int j=0; j < rows; j++) {
-		f_pixel prev, curr = to_f(gamma, apixels[j][0]), next=curr;
-		const rgb_pixel* nextLine = apixels[max(0,j-1)];
-		const rgb_pixel* prevLine = apixels[min(rows-1,j+1)];
-		for (int i=0; i < cols; i++) {
+	const f_pixel* pSrc = pixels;
+	double* pNoise = noise;
+	double* pEdges = edges;
+	for (size_t y=0; y<rows; ++y) {
+		f_pixel prev, curr = pSrc[0], next=curr;
+		const f_pixel* nextLine = (y == 0) ? pSrc : (pSrc - cols);
+		const f_pixel* prevLine = (y == rows-1) ? pSrc : (pSrc + cols);
+		for (size_t x=0; x<cols; ++x) {
 			prev = curr;
 			curr = next;
-			next = to_f(gamma, apixels[j][min(cols-1,i+1)]);
+			next = pSrc[min(cols-1,x+1)];
 
 			f_pixel hd = (prev + next - curr * 2.0).abs();
-			f_pixel nextl = to_f(gamma, nextLine[i]);
-			f_pixel prevl = to_f(gamma, prevLine[i]);
+			f_pixel nextl = nextLine[x];
+			f_pixel prevl = prevLine[x];
 			f_pixel vd = (prevl + nextl - curr * 2.0).abs();
 			double horiz = max(hd.a, hd.r, hd.g, hd.b);
 			double vert = max(vd.a, vd.r, vd.g, vd.b);
@@ -532,12 +532,14 @@ void contrast_maps(const rgb_pixel*const apixels[], int cols, int rows, double g
 			z *= z;
 			z *= z;
 
-			noise[j*cols+i] = z;
-			edges[j*cols+i] = 1.0 - edge;
+			pNoise[x] = z;
+			pEdges[x] = 1.0 - edge;
 		}
+		pSrc += cols;
+		pNoise += cols;
+		pEdges += cols;
 	}
-
-
+	
 	max3(noise, tmp, cols, rows);
 	max3(tmp, noise, cols, rows);
 
@@ -604,25 +606,44 @@ void update_dither_map(write_info *output_image, double* edges)
 	}
 }
 
+void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double gamma, f_pixel* dest)
+{
+	f_pixel* pDst = dest;
+	for (size_t y=0; y<rows; ++y) {
+		const rgb_pixel* pSrc = apixels[y];
+		for (size_t x=0; x<cols; ++x) {
+			f_pixel lab = rgb2lab(to_f(gamma, pSrc[x]));
+			pDst[x] = lab;
+		}
+		pDst += cols;
+	}
+}
+
 pngquant_error pngquant(
 	read_info* input_image, write_info* output_image,
 	bool floyd, int reqcolors, int speed_tradeoff
 	)
 {
-	double min_opaque_val;
-
 	verbose_printf("  reading file corrected for gamma %2.1f\n", 1.0/input_image->gamma);
 
-	min_opaque_val = modify_alpha(input_image);
+	double min_opaque_val = modify_alpha(input_image);
 	assert(min_opaque_val>0);
-
-	std::vector<double> noise(input_image->width * input_image->height);
-	std::vector<double> edges(input_image->width * input_image->height);
+	size_t width = input_image->width;
+	size_t height = input_image->height;
+	std::vector<f_pixel> input(width * height);
+	convert(
+		(const rgb_pixel**)input_image->row_pointers,
+		width, height,
+		input_image->gamma, &input[0]
+		);
+	
+	std::vector<double> noise(width * height);
+	std::vector<double> edges(width * height);
 	if (speed_tradeoff < 8) {
 		contrast_maps(
-			(const rgb_pixel**)input_image->row_pointers,
-			input_image->width, input_image->height,
-			input_image->gamma, &noise[0], &edges[0]
+			&input[0],
+			width, height,
+			&noise[0], &edges[0]
 			);
 	}
 

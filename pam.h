@@ -359,7 +359,6 @@ f_pixel xyz2lab(f_pixel xyz)
 	// http://www.brucelindbloom.com/index.html?Eqn_XYZ_to_Lab.html
 	static const double K = 24389.0 / 27.0;
 	static const double S = 216.0 / 24389.0;
-	xyz *= 100.0;
 	f_pixel f;
 	f_pixel lab;
 	// fx
@@ -384,6 +383,12 @@ f_pixel xyz2lab(f_pixel xyz)
 	lab.g = 500 * (f.r - f.g);
 	lab.b = 200 * (f.g - f.b);
 	lab.a = xyz.a;
+
+	// normalize
+	lab.r /= 100.0;
+	lab.g = (lab.g + 134) / 354.0;
+	lab.b = (lab.b + 140) / 362.0;
+
 	return lab;
 }
 
@@ -400,8 +405,10 @@ double colordifference(f_pixel px, f_pixel py)
 //	f_pixel diff = rgb2xyz(px) - rgb2xyz(py);
 	f_pixel diff = rgb2lab(px) - rgb2lab(py);
 //	diff.square();
-	diff.g *= 0.22; // adjust this value to adjust balance between chrominance and luminance..
-	diff.b *= 0.22; // adjust this value to adjust balance between chrominance and luminance..
+	diff.g *= max(px.r, py.r); // adjust this value to adjust balance between chrominance and luminance..
+	diff.b *= max(px.r, py.r); // adjust this value to adjust balance between chrominance and luminance..
+
+
 	diff.square();
 	return diff.a * 3.0 + diff.r + diff.g + diff.b;
 }

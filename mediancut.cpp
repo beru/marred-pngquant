@@ -200,7 +200,7 @@ void sort_colors_by_variance(f_pixel variance, hist_item* achv, int indx, int cl
 	else if (ch == index_of_channel(b)) comp = weightedcompare_b;
 	else comp = weightedcompare_a;
 
-	std::sort(achv+indx, achv+clrs, comp);
+	std::sort(achv+indx, achv+indx+clrs, comp);
 }
 
 
