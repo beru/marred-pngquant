@@ -405,12 +405,16 @@ double colordifference(f_pixel px, f_pixel py)
 //	f_pixel diff = rgb2xyz(px) - rgb2xyz(py);
 	f_pixel diff = rgb2lab(px) - rgb2lab(py);
 //	diff.square();
-	diff.g *= max(px.r, py.r); // adjust this value to adjust balance between chrominance and luminance..
-	diff.b *= max(px.r, py.r); // adjust this value to adjust balance between chrominance and luminance..
-
-
+//	diff.g *= 0.7; // change this value to adjust balance between chrominance and luminance..
+//	diff.b *= 0.7; // change this value to adjust balance between chrominance and luminance..
+	
 	diff.square();
-	return diff.a * 3.0 + diff.r + diff.g + diff.b;
+	return 
+		diff.a * 3.0
+		+ diff.r
+		+ diff.g
+		+ diff.b
+		;
 }
 
 /* from pamcmap.h */
