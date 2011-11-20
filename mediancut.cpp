@@ -31,8 +31,8 @@ static
 f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opaque_val)
 {
 	f_pixel csum(0,0,0,0);
-	double sum = 0;
-	double maxa = 0;
+	double sum = 0.0;
+	double maxa = 0.0;
 	int i;
 
 	for (i=0; i<clrs; ++i) {
@@ -42,25 +42,25 @@ f_pixel averagepixels(int indx, int clrs, const hist_item achv[], double min_opa
 		/* give more weight to colors that are further away from average
 		 this is intended to prevent desaturation of images and fading of whites
 		 */
-		f_pixel tmp = f_pixel(0.5f, 0.5f, 0.5f, 0.5f) - px;
+		f_pixel tmp = f_pixel(0.5, 0.5, 0.5, 0.5) - px;
 		tmp.square();
 		weight += tmp.r + tmp.g + tmp.b;
 		weight *= hist.adjusted_weight;
 		csum += px * weight;
 		sum += weight;
-
+		
 		/* find if there are opaque colors, in case we're supposed to preserve opacity exactly (ie_bug) */
-		maxa = max(maxa, px.a);
+		maxa = max(maxa, px.alpha);
 	}
-
+	
 	/* Colors are in premultiplied alpha colorspace, so they'll blend OK
 	 even if different opacities were mixed together */
-	if (!sum) sum=1;
+	if (!sum) sum = 1.0;
 	csum /= sum;
 	
 	/** if there was at least one completely opaque color, "round" final color to opaque */
-	if (csum.a >= min_opaque_val && maxa >= (255.0/256.0)) csum.a = 1;
-
+	if (csum.alpha >= min_opaque_val && maxa >= (255.0/256.0)) csum.alpha = 1.0;
+	
 	return csum;
 }
 
@@ -160,8 +160,8 @@ bool weightedcompare_a(const hist_item& lhs, const hist_item& rhs)
 {
 	const f_pixel& p1 = lhs.acolor;
 	const f_pixel& p2 = rhs.acolor;
-	double c1 = p1.a;
-	double c2 = p2.a;
+	double c1 = p1.alpha;
+	double c2 = p2.alpha;
 	if (c1 > c2) return true;
 	if (c1 < c2) return false;
 	
@@ -189,8 +189,8 @@ void sort_colors_by_variance(f_pixel variance, hist_item* achv, int indx, int cl
 	channel_sort_order[0] = channelvariance(index_of_channel(r), variance.r);
 	channel_sort_order[1] = channelvariance(index_of_channel(g), variance.g);
 	channel_sort_order[2] = channelvariance(index_of_channel(b), variance.b);
-	channel_sort_order[3] = channelvariance(index_of_channel(a), variance.a);
-
+	channel_sort_order[3] = channelvariance(index_of_channel(alpha), variance.alpha);
+	
 	std::sort(channel_sort_order, channel_sort_order+4);
 	
 	bool (*comp)(const hist_item&, const hist_item&); // comp variable that is a pointer to a function
@@ -325,14 +325,14 @@ std::vector<colormap_item> mediancut(
 		 */
 
 		f_pixel median = averagepixels(indx+(clrs-1)/2, clrs&1 ? 1 : 2, &hist[0], min_opaque_val);
-
-		int lowersum = 0;
+		
+		double lowersum = 0;
 		double halfvar = 0, lowervar = 0;
-		for (int i=0; i<clrs-1; i++) {
+		for (int i=0; i<clrs; i++) {
 			halfvar += color_weight(median, hist[indx+i]);
 		}
 		halfvar /= 2.0;
-
+		
 		int break_at;
 		for (break_at=0; break_at<clrs-1; ++break_at) {
 			if (lowervar >= halfvar)
@@ -341,7 +341,7 @@ std::vector<colormap_item> mediancut(
 			lowervar += color_weight(median, hi);
 			lowersum += hi.adjusted_weight;
 		}
-
+		
 		/*
 		 ** Split the box. Sum*variance is then used to find "largest" box to split.
 		 */
@@ -356,7 +356,7 @@ std::vector<colormap_item> mediancut(
 		bx2.variance = halfvar*2.0-lowervar;
 		++boxes;
 	}
-
+	
 	std::vector<colormap_item>& map = colormap_from_boxes(&bv[0], boxes, &hist[0], min_opaque_val);
 	adjust_histogram(&hist[0], map, &bv[0], boxes);
 

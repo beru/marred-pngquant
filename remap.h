@@ -35,12 +35,14 @@ void viter_finalize(
 	);
 
 double remap_to_palette(
-	const read_info* input_image, write_info* output_image,
+	const f_pixel* input, size_t width, size_t height,
+	write_info* output_image,
 	std::vector<colormap_item>& map, double min_opaque_val
 	);
 	
 void remap_to_palette_floyd(
-	const read_info* input_image, write_info* output_image,
+	const f_pixel* input, size_t width, size_t height,
+	write_info* output_image,
 	const std::vector<colormap_item>& map, double min_opaque_val,
 	const double* edge_map
 	);

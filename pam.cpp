@@ -20,7 +20,6 @@
 #include "pam.h"
 
 static std::vector<hist_item> pam_acolorhashtoacolorhist(acolorhash_table* acht, int maxacolors);
-static acolorhash_table* pam_computeacolorhash(const rgb_pixel* const* apixels, int cols, int rows, double gamma, int maxacolors, int ignorebits, const double* importance_map, int* acolorsP);
 static void pam_freeacolorhash(acolorhash_table* acht);
 static acolorhash_table* pam_allocacolorhash(void);
 
@@ -83,47 +82,27 @@ void mempool_free(mempool* m)
 static inline
 unsigned long pam_hashapixel(f_pixel px)
 {
-	unsigned long hash = px.a * 256.0*5.0 + px.r * 256.0*179.0 + px.g * 256.0*17.0 + px.b * 256.0*30047.0;
+	unsigned long hash = px.alpha * 256.0*5.0 + px.r * 256.0*179.0 + px.g * 256.0*17.0 + px.b * 256.0*30047.0;
 	return hash % HASH_SIZE;
 }
 
-/**
- * Builds color histogram no larger than maxacolors. Ignores (posterizes) ignorebits lower bits in each color.
- * perceptual_weight of each entry is increased by value from importance_map
- */
-std::vector<hist_item> pam_computeacolorhist(
-	const rgb_pixel*const apixels[],
-	int cols, int rows, double gamma, int maxacolors, int ignorebits,
-	const double* importance_map
-	)
-{
-
-	int hist_size = 0;
-	acolorhash_table* acht = pam_computeacolorhash(apixels, cols, rows, gamma, maxacolors, ignorebits, importance_map, &hist_size);
-	if (!acht) return std::vector<hist_item>();
-
-	std::vector<hist_item> ret = pam_acolorhashtoacolorhist(acht, hist_size);
-	pam_freeacolorhash(acht);
-	return ret;
-}
-
 static inline
-f_pixel posterize_pixel(rgb_pixel px, int maxval, double gamma)
+f_pixel posterize_pixel(f_pixel px, int maxval)
 {
-	if (maxval == 255) {
-		return to_f(gamma, px);
-	}else {
-		return to_f_scalar(
-			gamma,
-			(px * maxval / 255) / (double)maxval
-		);
-	}
+//	if (maxval == 255) {
+		return px;
+//	}else {
+//		return to_f_scalar(
+//			gamma,
+//			(px * maxval / 255) / (double)maxval
+//		);
+//	}
 }
 
 static
 acolorhash_table* pam_computeacolorhash(
-	const rgb_pixel*const* apixels, int cols, int rows,
-	double gamma, int maxacolors, int ignorebits, const double* importance_map, int* acolorsP
+	const f_pixel* input, size_t width, size_t height,
+	int maxacolors, int ignorebits, const double* importance_map, int* acolorsP
 	)
 {
 	
@@ -134,11 +113,11 @@ acolorhash_table* pam_computeacolorhash(
 	int colors = 0;
 
 	/* Go through the entire image, building a hash table of colors. */
-	for (int row=0; row<rows; ++row) {
-		const rgb_pixel* curline = apixels[row];
-		for (int col=0; col<cols; ++col) {
+	const f_pixel* pLine = input;
+	for (size_t y=0; y<height; ++y) {
+		for (size_t x=0; x<width; ++x) {
 			double boost = 0.5 + *importance_map++;
-			f_pixel curr = posterize_pixel(curline[col], maxval, gamma);
+			f_pixel curr = posterize_pixel(pLine[x], maxval);
 			int hash = pam_hashapixel(curr);
 			for (achl=buckets[hash]; achl!=NULL; achl=achl->next) {
 				if (achl->acolor == curr) {
@@ -160,10 +139,29 @@ acolorhash_table* pam_computeacolorhash(
 				buckets[hash] = achl;
 			}
 		}
-
+		pLine += width;
 	}
 	*acolorsP = colors;
 	return acht;
+}
+
+/**
+ * Builds color histogram no larger than maxacolors. Ignores (posterizes) ignorebits lower bits in each color.
+ * perceptual_weight of each entry is increased by value from importance_map
+ */
+std::vector<hist_item> pam_computeacolorhist(
+	const f_pixel* input, size_t width, size_t height,
+	int maxacolors, int ignorebits,
+	const double* importance_map
+	)
+{
+	int hist_size = 0;
+	acolorhash_table* acht = pam_computeacolorhash(input, width, height, maxacolors, ignorebits, importance_map, &hist_size);
+	if (!acht) return std::vector<hist_item>();
+
+	std::vector<hist_item> ret = pam_acolorhashtoacolorhist(acht, hist_size);
+	pam_freeacolorhash(acht);
+	return ret;
 }
 
 static
@@ -184,8 +182,8 @@ std::vector<hist_item> pam_acolorhashtoacolorhist(
 	std::vector<hist_item> ret(hist_size);
 	acolorhist_list_item* achl;
 	/* Loop through the hash table. */
-	int j = 0;
-	for (int i=0; i<HASH_SIZE; ++i)
+	size_t j = 0;
+	for (size_t i=0; i<HASH_SIZE; ++i)
 		for (achl=acht->buckets[i]; achl!=NULL; achl=achl->next) {
 			hist_item& hist = ret[j];
 			/* Add the new entry. */
