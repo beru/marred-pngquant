@@ -45,21 +45,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <stdarg.h>
 #ifdef WIN32		/* defined in Makefile.w32 (or use _MSC_VER for MSVC) */
 #  include <fcntl.h>	/* O_BINARY */
 #  include <io.h>	/* setmode() */
 #endif
 
-#include <stddef.h>
-
-#include "png.h"	/* libpng header; includes zlib.h */
 #include "rwpng.h"	/* typedefs, common macros, public prototypes */
 #include "pam.h"
 #include "mediancut.h"
 #include "remap.h"
 #include "blur.h"
+#include "viter.h"
 
 #include <vector>
 #include <algorithm>
@@ -205,6 +202,7 @@ int main(int argc, char* argv[])
 		retval = read_image(filename,using_stdin, &input_image);
 
 		if (!retval) {
+            verbose_printf("  read file corrected for gamma %2.1f\n", 1.0/input_image.gamma);
 			retval = pngquant(&input_image, &output_image, floyd, reqcolors, speed_tradeoff);
 		}
 
@@ -618,13 +616,73 @@ void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double g
 	}
 }
 
+/**
+ Repeats mediancut with different histogram weights to find palette with minimum error.
+
+ feedback_loop_trials controls how long the search will take. < 0 skips the iteration.
+ */
+void find_best_palette(std::vector<hist_item>& hist, int reqcolors, double min_opaque_val, int feedback_loop_trials, double* palette_error_p, std::vector<colormap_item>& acolormap)
+{
+	const double percent = (double)(feedback_loop_trials>0?feedback_loop_trials:1)/100.0;
+	double least_error;
+	do {
+		verbose_printf("  selecting colors");
+
+		std::vector<colormap_item> newmap = mediancut(hist, min_opaque_val, reqcolors);
+		
+        if (feedback_loop_trials <= 0) {
+			verbose_printf("\n");
+			acolormap = newmap;
+		}
+		verbose_printf("...");
+		
+		double total_error = 0;
+		std::vector<f_pixel> average_color(newmap.size());
+		std::vector<f_pixel> base_color(newmap.size());
+		std::vector<double> average_color_count(newmap.size());
+		std::vector<double> base_color_count(newmap.size());
+
+		viter_init(newmap, &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
+		for (size_t i=0; i<hist.size(); i++) {
+			double diff;
+			hist_item& hi = hist[i];
+			int match = best_color_index(newmap, hi.acolor, &diff);
+			assert(diff >= 0);
+			assert(hi.perceptual_weight > 0);
+			total_error += diff * hi.perceptual_weight;
+			
+			viter_update_color(hi.acolor, hi.perceptual_weight, newmap, match,
+							   &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
+
+			hi.adjusted_weight = (hi.perceptual_weight+hi.adjusted_weight) * (1.0+sqrt(diff));
+		}
+		
+		if (total_error < least_error || acolormap.size() == 0) {
+			acolormap = newmap;
+
+			viter_finalize(acolormap, &average_color[0], &average_color_count[0]);
+
+			least_error = total_error;
+			feedback_loop_trials -= 1; // asymptotic improvement could make it go on forever
+		}else {
+			feedback_loop_trials -= 6;
+			if (total_error > least_error*4) feedback_loop_trials -= 3;
+		}
+
+		verbose_printf("%d%%\n",100-max(0,(int)(feedback_loop_trials/percent)));
+	}while (feedback_loop_trials > 0);
+	
+    double total_weight = 0;
+    for (int i=0; i<hist.size(); i++) total_weight += hist[i].perceptual_weight;
+
+    *palette_error_p = least_error / total_weight;
+}
+
 pngquant_error pngquant(
 	read_info* input_image, write_info* output_image,
 	bool floyd, int reqcolors, int speed_tradeoff
 	)
 {
-	verbose_printf("  reading file corrected for gamma %2.1f\n", 1.0/input_image->gamma);
-
 	double min_opaque_val = modify_alpha(input_image);
 	assert(min_opaque_val > 0);
 	size_t width = input_image->width;
@@ -649,64 +707,17 @@ pngquant_error pngquant(
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
 	std::vector<hist_item> hist = histogram(&input[0], width, height, reqcolors, speed_tradeoff, &noise[0]);
-	std::vector<colormap_item> acolormap;
-	double least_error = -1;
-	int feedback_loop_trials = 56 - 9*speed_tradeoff;
-	const double percent = (double)(feedback_loop_trials>0?feedback_loop_trials:1)/100.0;
-
-	do {
-		verbose_printf("  selecting colors");
-
-		std::vector<colormap_item> newmap = mediancut(hist, min_opaque_val, reqcolors);
-		
-		verbose_printf("...");
-
-		double total_error = 0;
-		std::vector<f_pixel> average_color(newmap.size());
-		std::vector<f_pixel> base_color(newmap.size());
-		std::vector<double> average_color_count(newmap.size());
-		std::vector<double> base_color_count(newmap.size());
-
-		if (feedback_loop_trials) {
-
-			viter_init(newmap, &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
-
-			for (size_t i=0; i<hist.size(); i++) {
-				double diff;
-				hist_item& hi = hist[i];
-				int match = best_color_index(newmap, hi.acolor, &diff);
-				assert(diff >= 0);
-				assert(hi.perceptual_weight > 0);
-				total_error += diff * hi.perceptual_weight;
-				
-				viter_update_color(hi.acolor, hi.perceptual_weight, newmap, match,
-								   &average_color[0], &average_color_count[0], &base_color[0], &base_color_count[0]);
-
-				hi.adjusted_weight = (hi.perceptual_weight+hi.adjusted_weight) * (1.0+sqrt(diff));
-			}
-		}
-		
-		if (total_error < least_error || acolormap.size() == 0) {
-			acolormap = newmap;
-
-			viter_finalize(acolormap, &average_color[0], &average_color_count[0]);
-
-			least_error = total_error;
-			feedback_loop_trials -= 1; // asymptotic improvement could make it go on forever
-		}else {
-			feedback_loop_trials -= 6;
-			if (total_error > least_error*4) feedback_loop_trials -= 3;
-		}
-
-		verbose_printf("%d%%\n",100-max(0,(int)(feedback_loop_trials/percent)));
-	}while (feedback_loop_trials > 0);
+	double palette_error = -1;
 
 	verbose_printf("  moving colormap towards local minimum\n");
 
-	int iterations = max(5-speed_tradeoff, 0);
-	iterations *= iterations;
+	std::vector<colormap_item> acolormap;
+	find_best_palette(hist, reqcolors, min_opaque_val, 56-9*speed_tradeoff, &palette_error, acolormap);
+	
+	int iterations = max(17-speed_tradeoff, 0);
+	iterations += iterations * iterations/2;
 	for (int i=0; i<iterations; i++) {
-		viter_do_interation(hist, acolormap, min_opaque_val);
+		palette_error = viter_do_interation(hist, acolormap, min_opaque_val);
 	}
 
 	output_image->width = input_image->width;
@@ -741,8 +752,17 @@ pngquant_error pngquant(
 	// If no dithering is required, that's the final remapping.
 	// If dithering (with dither map) is required, this image is used to find areas that require dithering
 	double remapping_error = remap_to_palette(&input[0], width, height, output_image, acolormap, min_opaque_val);
+    // remapping error from dithered image is absurd, so always non-dithered value is used
+    // palette_error includes some perceptual weighting from histogram which is closer correlated with dssim
+    // so that should be used when possible.
+    if (palette_error < 0) {
+        palette_error = remapping_error;
+    }
 	update_dither_map(output_image, &edges[0]);
-	
+    if (palette_error >= 0) {
+        verbose_printf("MSE=%.3f", palette_error*256.0f);
+    }
+    	
 	// remapping error from dithered image is absurd, so always non-dithered value is used
 	verbose_printf("MSE=%.3f", remapping_error*256.0);
 	

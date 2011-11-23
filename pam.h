@@ -16,6 +16,7 @@
 
 #include <vector>
 #include <math.h>
+#include <assert.h>
 
 template <typename T>
 T min(T a, T b)
@@ -503,10 +504,15 @@ struct acolorhash_table {
 	acolorhist_list_item** buckets;
 };
 
+int best_color_index(
+	const std::vector<colormap_item>& map,
+	f_pixel px,
+	double* dist_out
+	);
+
 std::vector<hist_item> pam_computeacolorhist(
 	const f_pixel* input, size_t width, size_t height,
 	int maxacolors, int ignorebits,
 	const double* importance_map
 	);
-
 

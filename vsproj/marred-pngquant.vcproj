@@ -185,6 +185,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\mempool.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\pam.cpp"
 				>
 			</File>
@@ -198,6 +202,10 @@
 			</File>
 			<File
 				RelativePath="..\rwpng.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\viter.cpp"
 				>
 			</File>
 		</Filter>
@@ -215,6 +223,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\mempool.h"
+				>
+			</File>
+			<File
 				RelativePath="..\pam.h"
 				>
 			</File>
@@ -224,6 +236,10 @@
 			</File>
 			<File
 				RelativePath="..\rwpng.h"
+				>
+			</File>
+			<File
+				RelativePath="..\viter.h"
 				>
 			</File>
 		</Filter>

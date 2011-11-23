@@ -14,11 +14,8 @@
  */
 
 #include <stdlib.h>
-#include <assert.h>
 #include <stddef.h>
 
-#include "png.h"	/* libpng header; includes zlib.h */
-#include "rwpng.h"	/* typedefs, common macros, public prototypes */
 #include "pam.h"
 #include "mediancut.h"
 
@@ -290,9 +287,10 @@ std::vector<colormap_item> mediancut(
 	/*
 	 ** Set up the initial box.
 	 */
-	bv[0].ind = 0;
+	bv[0].ind = 0.0;
 	bv[0].colors = hist.size();
 	bv[0].variance = 1.0;
+    bv[0].sum = 0.0;
 	for (int i=0; i<bv[0].colors; i++)
 		bv[0].sum += hist[i].adjusted_weight;
 

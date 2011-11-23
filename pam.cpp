@@ -12,16 +12,36 @@
  ** implied warranty.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <sys/types.h>
 
 #include "pam.h"
+
+#include "mempool.h"
 
 static std::vector<hist_item> pam_acolorhashtoacolorhist(acolorhash_table* acht, int maxacolors);
 static void pam_freeacolorhash(acolorhash_table* acht);
 static acolorhash_table* pam_allocacolorhash(void);
+
+int best_color_index(
+	const std::vector<colormap_item>& map,
+	f_pixel px,
+	double* dist_out
+	)
+{
+	int ind = 0;
+	double dist = colordifference(px, map[0].acolor);
+
+	for (size_t i=1; i<map.size(); ++i) {
+		double newdist = colordifference(px, map[i].acolor);
+		if (newdist < dist) {
+			ind = i;
+			dist = newdist;
+		}
+	}
+
+	if (dist_out) *dist_out = dist;
+	return ind;
+}
 
 /* libpam3.c - pam (portable alpha map) utility library part 3
  **
@@ -39,45 +59,6 @@ static acolorhash_table* pam_allocacolorhash(void);
  */
 
 #define HASH_SIZE 30029
-
-struct mempool {
-	mempool* next;
-	size_t used;
-};
-
-#define MEMPOOL_RESERVED ((sizeof(mempool)+15) & ~0xF)
-#define MEMPOOL_SIZE (1<<18)
-
-static
-void* mempool_new(mempool*& rpm, size_t size)
-{
-	assert(size < MEMPOOL_SIZE-MEMPOOL_RESERVED);
-	
-	if (rpm && (rpm->used+size) <= MEMPOOL_SIZE) {
-		int prevused = rpm->used;
-		rpm->used += (size+15) & ~0xF;
-		return ((char*)rpm) + prevused;
-	}
-
-	mempool* old = rpm ? rpm : NULL;
-	char *mem = (char*) calloc(MEMPOOL_SIZE, 1);
-
-	rpm = (mempool*)mem;
-	rpm->used = MEMPOOL_RESERVED;
-	rpm->next = old;
-
-	return mempool_new(rpm, size);
-}
-
-static
-void mempool_free(mempool* m)
-{
-	while (m) {
-		mempool* next = m->next;
-		free(m);
-		m = next;
-	}
-}
 
 static inline
 unsigned long pam_hashapixel(f_pixel px)
@@ -202,4 +183,3 @@ void pam_freeacolorhash(acolorhash_table* acht)
 {
 	mempool_free(acht->mempool);
 }
-

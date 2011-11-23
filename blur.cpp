@@ -2,7 +2,6 @@
 //	blur.c
 //	pngquant
 
-#include <assert.h>
 #include "pam.h"
 #include "blur.h"
 
