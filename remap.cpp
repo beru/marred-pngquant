@@ -87,7 +87,7 @@ void remap_to_palette_floyd(
 		const double* pEdge = &edge_map[y*width];
 		do {
 			f_pixel px = pInputLine[x];
-			double dither_level = pEdge[x];
+			double dither_level = min(0.9, 0.4 + pEdge[x]);
 			
 			/* Use Floyd-Steinberg errors to adjust actual color. */
 			f_pixel tmp = px + thiserr[x + 1] * dither_level;

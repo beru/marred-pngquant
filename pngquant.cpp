@@ -562,7 +562,7 @@ void contrast_maps(const f_pixel* pixels, size_t cols, size_t rows, double* nois
  * and peeks 1 pixel above/below. Full 2d algorithm doesn't improve it significantly.
  * Correct flood fill doesn't have visually good properties.
  */
-void update_dither_map(write_info *output_image, double* edges)
+void update_dither_map(const write_info* output_image, double* edges)
 {
 	const int width = output_image->width;
 	const int height = output_image->height;
@@ -624,7 +624,7 @@ void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double g
 void find_best_palette(std::vector<hist_item>& hist, int reqcolors, double min_opaque_val, int feedback_loop_trials, double* palette_error_p, std::vector<colormap_item>& acolormap)
 {
 	const double percent = (double)(feedback_loop_trials>0?feedback_loop_trials:1)/100.0;
-	double least_error;
+	double least_error = -1;
 	do {
 		verbose_printf("  selecting colors");
 
@@ -712,9 +712,9 @@ pngquant_error pngquant(
 	verbose_printf("  moving colormap towards local minimum\n");
 
 	std::vector<colormap_item> acolormap;
-	find_best_palette(hist, reqcolors, min_opaque_val, 56-9*speed_tradeoff, &palette_error, acolormap);
+	find_best_palette(hist, reqcolors, min_opaque_val, 200-9*speed_tradeoff, &palette_error, acolormap);
 	
-	int iterations = max(17-speed_tradeoff, 0);
+	int iterations = max(16-speed_tradeoff, 0);
 	iterations += iterations * iterations/2;
 	for (int i=0; i<iterations; i++) {
 		palette_error = viter_do_interation(hist, acolormap, min_opaque_val);
@@ -722,7 +722,7 @@ pngquant_error pngquant(
 
 	output_image->width = input_image->width;
 	output_image->height = input_image->height;
-	output_image->gamma = 0.45455;
+	output_image->gamma = SRGB_GAMMA;
 	
 	/*
 	** Step 3.7 [GRR]: allocate memory for the entire indexed image
@@ -749,6 +749,9 @@ pngquant_error pngquant(
 	 */
 	verbose_printf("  mapping image to new colors...");
 
+	// remapping above was the last chance to do voronoi iteration, hence the final palette is set after remapping
+	set_palette(output_image, acolormap);
+	
 	// If no dithering is required, that's the final remapping.
 	// If dithering (with dither map) is required, this image is used to find areas that require dithering
 	double remapping_error = remap_to_palette(&input[0], width, height, output_image, acolormap, min_opaque_val);
@@ -762,13 +765,7 @@ pngquant_error pngquant(
     if (palette_error >= 0) {
         verbose_printf("MSE=%.3f", palette_error*256.0f);
     }
-    	
-	// remapping error from dithered image is absurd, so always non-dithered value is used
-	verbose_printf("MSE=%.3f", remapping_error*256.0);
-	
-	// remapping above was the last chance to do voronoi iteration, hence the final palette is set after remapping
-	set_palette(output_image, acolormap);
-	
+    
 	if (floyd) {
 		remap_to_palette_floyd(&input[0], width, height, output_image, acolormap, min_opaque_val, &edges[0]);
 	}

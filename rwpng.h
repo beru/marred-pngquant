@@ -103,3 +103,4 @@ int rwpng_write_image_row(write_info* mainprog_ptr);
 
 int rwpng_write_image_finish(write_info* mainprog_ptr);
 
+static const double SRGB_GAMMA = 0.45455; // 1.0/2.2

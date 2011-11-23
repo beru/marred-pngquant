@@ -290,7 +290,8 @@ bool operator == (const f_pixel& l, const f_pixel& r)
 		;
 }
 
-static const double internal_gamma = 0.45455;
+// http://www.cgsd.com/papers/gamma_colorspace.html
+static const double INTERNAL_GAMMA = 0.9;	// adjust this value depends on image hehehe
 
 /**
  Converts scalar color to internal gamma and premultiplied alpha.
@@ -299,10 +300,10 @@ static const double internal_gamma = 0.45455;
 static inline
 f_pixel to_f_scalar(double gamma, f_pixel px)
 {
-	if (gamma != internal_gamma) {
-		px.r = pow(px.r, internal_gamma/gamma);
-		px.g = pow(px.g, internal_gamma/gamma);
-		px.b = pow(px.b, internal_gamma/gamma);
+	if (gamma != INTERNAL_GAMMA) {
+		px.r = pow(px.r, INTERNAL_GAMMA/gamma);
+		px.g = pow(px.g, INTERNAL_GAMMA/gamma);
+		px.b = pow(px.b, INTERNAL_GAMMA/gamma);
 	}
 
 	px.r *= px.alpha;
@@ -334,7 +335,7 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 
 	double r,g,b,a;
 
-	gamma /= internal_gamma;
+	gamma /= INTERNAL_GAMMA;
 
 	// 256, because numbers are in range 1..255.9999… rounded down
 	r = pow(px.r/px.alpha, gamma)*256.0;
@@ -395,6 +396,23 @@ f_pixel lab2xyz(f_pixel lab)
 	f3 *= f;
 	f3 *= f;
 	f_pixel xyz;
+#if 1
+	if (f3.x > E) {
+		xyz.x = f3.x;
+	}else {
+		xyz.x = ((f.x * 116) - 16) / K;
+	}
+	if (f3.y > E) {
+		xyz.y = f3.y;
+	}else {
+		xyz.y = ((f.y * 116) - 16) / K;
+	}
+	if (f3.z > E) {
+		xyz.z = f3.z;
+	}else {
+		xyz.z = ((f.z * 116) - 16) / K;
+	}
+#else
 	if (f3.x > E) {
 		xyz.x = f3.x;
 	}else {
@@ -411,6 +429,7 @@ f_pixel lab2xyz(f_pixel lab)
 	}else {
 		xyz.z = (116.0 * f.z - 16.0) / K;
 	}
+#endif
 	xyz.alpha = lab.alpha;
 	return xyz;
 }
@@ -427,19 +446,19 @@ f_pixel xyz2lab(f_pixel xyz)
 	if (xyz.x <= S) {
 		f.x = (K * xyz.x + 16) / 116;
 	}else {
-		f.x = pow(xyz.x, 0.3333);
+		f.x = pow(xyz.x, 1.0/3.0);
 	}
 	// fy
 	if (xyz.y <= S) {
 		f.y = (K * xyz.y + 16) / 116;
 	}else {
-		f.y = pow(xyz.y, 0.3333);
+		f.y = pow(xyz.y, 1.0/3.0);
 	}
 	// fz
 	if (xyz.z <= S) {
 		f.z = (K * xyz.z + 16) / 116;
 	}else {
-		f.z = pow(xyz.z, 0.3333);
+		f.z = pow(xyz.z, 1.0/3.0);
 	}
 	lab.l = 116 * f.y -16;
 	lab.a = 500 * (f.x - f.y);
@@ -474,8 +493,8 @@ double colordifference(f_pixel px, f_pixel py)
 	diff.square();
 	return 
 		diff.alpha * 3.0
-		+ diff.r
-		+ diff.g
+		+ diff.l
+		+ diff.a
 		+ diff.b
 		;
 }
