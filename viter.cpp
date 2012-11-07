@@ -1,91 +1,86 @@
 #include "pam.h"
 #include "viter.h"
+#include "nearest.h"
+#include <stdlib.h>
+#include <string.h>
 
 /*
  * Voronoi iteration: new palette color is computed from weighted average of colors that map to that palette entry.
  */
 void viter_init(
-	const std::vector<colormap_item>& map,
-	f_pixel* average_color, double* average_color_count,
-	f_pixel* base_color, double* base_color_count
+	const colormap* map,
+	viter_state* average_color
 	)
 {
-	for (size_t i=0; i<map.size(); i++) {
-		average_color_count[i] = 0;
-		average_color[i] = f_pixel(0,0,0,0);
-	}
-
-	// Rather than only using separate mapping and averaging steps
-	// new palette colors are computed at the same time as mapping is done
-	// but to avoid first few matches moving the entry too much
-	// some base color and weight is added
-	if (base_color) {
-		for (size_t i=0; i<map.size(); i++) {
-			const colormap_item& nmi = map[i];
-			double value = 1.0 + nmi.popularity/2.0;
-			base_color_count[i] = value;
-			base_color[i] = nmi.acolor * value;
-		}
-	}
+	memset(average_color, 0, sizeof(average_color[0])*map->colors);
 }
 
 void viter_update_color(
-	f_pixel acolor, double value, std::vector<colormap_item>& map, int match,
-	f_pixel* average_color, double* average_color_count,
-	const f_pixel* base_color, const double* base_color_count
+	const f_pixel acolor,
+	const double value,
+	const colormap* map,
+	int match,
+	viter_state state[]
 	)
 {
-	f_pixel& ac = average_color[match];
-	double& acc = average_color_count[match];
-	const f_pixel& bc = base_color[match];
-	const double& bcc = base_color_count[match];
-	ac += acolor * value;
-	acc += value;
-	
-	if (base_color) {
-		map[match].acolor = (ac + bc) / (acc + bcc);
-	}
+	assert(match < map->colors);
+    state[match].a += acolor.alpha * value;
+    state[match].r += acolor.r * value;
+    state[match].g += acolor.g * value;
+    state[match].b += acolor.b * value;
+    state[match].total += value;
 }
 
 void viter_finalize(
-	std::vector<colormap_item>& map,
-	const f_pixel* average_color, const double* average_color_count
+	colormap* map,
+	const viter_state average_color[]
 	)
 {
-	for (size_t i=0; i<map.size(); i++) {
-		colormap_item& pal = map[i];
-		const double acc = average_color_count[i];
-		if (acc) {
-			pal.acolor = average_color[i] / acc;
+	for (size_t i=0; i<map->colors; i++) {
+        double a=0, r=0, g=0, b=0, total=0;
+		colormap_item& pal = map->palette[i];
+		const viter_state& s = average_color[i];
+		a += s.a;
+		r += s.r;
+		g += s.g;
+		b += s.b;
+		total += s.total;
+		if (total) {
+			pal.acolor = f_pixel(a,r,g,b) / total;
 		}
-		pal.popularity = acc;
+		
+		pal.popularity = total;
+		
 	}
 }
 
-double viter_do_interation(
-	const std::vector<hist_item>& hist,
-	std::vector<colormap_item>& map,
-	double min_opaque_val
+double viter_do_iteration(
+	histogram* hist,
+	colormap* const map,
+	double min_opaque_val,
+	viter_callback callback
 	)
 {
-	std::vector<f_pixel> average_color(map.size());
-	std::vector<double> average_color_count(map.size());
+	std::vector<viter_state> average_color(map->colors);
+//	viter_init(map, &average_color[0]);
+	nearest_map* const n = nearest_init(map);
+	hist_item* const achv = hist->achv;
+	const int hist_size = hist->size;
 
-	viter_init(map, &average_color[0], &average_color_count[0], NULL,NULL);
-	
-    double total_diff=0, total_weight=0;
-	for (size_t j=0; j<hist.size(); j++) {
-		const hist_item& hi = hist[j];
+	double total_diff=0;
+	for (size_t j=0; j<hist->size; ++j) {
 		double diff;
-		int match = best_color_index(map, hi.acolor, &diff);
-        total_diff += diff * hi.perceptual_weight;
-        total_weight += hi.perceptual_weight;
-		
-		viter_update_color(hi.acolor, hi.perceptual_weight, map, match, &average_color[0], &average_color_count[0], NULL, NULL);
+		unsigned int match = nearest_search(n, achv[j].acolor, min_opaque_val, &diff);
+		total_diff += diff * achv[j].perceptual_weight;
+
+		viter_update_color(achv[j].acolor, achv[j].perceptual_weight, map, match, &average_color[0]);
+
+		if (callback) callback(&achv[j], diff);
 	}
-	
-	viter_finalize(map, &average_color[0], &average_color_count[0]);
-	
-	return total_diff / total_weight;
+	nearest_free(n);
+	viter_finalize(map, &average_color[0]);
+
+	return total_diff / hist->total_perceptual_weight;
+
 }
 

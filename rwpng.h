@@ -29,78 +29,62 @@
 
   ---------------------------------------------------------------------------*/
 
-#include <setjmp.h>
-#include "png.h"    /* libpng header; includes zlib.h */
+#pragma once
 
-#ifndef TRUE
-#  define TRUE 1
-#  define FALSE 0
-#endif
+#include "png.h"    /* libpng header; includes zlib.h */
+#include <setjmp.h>
 
 enum pngquant_error {
     SUCCESS = 0,
+    MISSING_ARGUMENT = 1,
     READ_ERROR = 2,
-    TOO_MANY_COLORS = 5,
+    INVALID_ARGUMENT = 4,
     NOT_OVERWRITING_ERROR = 15,
     CANT_WRITE_ERROR = 16,
     OUT_OF_MEMORY_ERROR = 17,
+    WRONG_ARCHITECTURE = 18, // Missing SSE3
     PNG_OUT_OF_MEMORY_ERROR = 24,
-    INIT_OUT_OF_MEMORY_ERROR = 34,
-    BAD_SIGNATURE_ERROR = 21,
     LIBPNG_FATAL_ERROR = 25,
     LIBPNG_INIT_ERROR = 35,
-    LIBPNG_WRITE_ERROR = 55,
-    LIBPNG_WRITE_WHOLE_ERROR = 45,
-
-    INVALID_ARGUMENT = 4,
-    MISSING_ARGUMENT = 1,
+    TOO_LOW_QUALITY = 99,
 };
 
-struct read_info {
+struct png24_image {
     jmp_buf jmpbuf;
     png_uint_32 width;
     png_uint_32 height;
-    png_uint_32 rowbytes;
     double gamma;
-    int interlaced;
-    unsigned char* rgba_data;
     unsigned char** row_pointers;
+    unsigned char* rgba_data;
+    png_size_t file_size;
 };
 
-struct write_info {
+struct png8_image {
     jmp_buf jmpbuf;
-    void* png_ptr;
-    void* info_ptr;
     png_uint_32 width;
     png_uint_32 height;
     double gamma;
-    int interlaced;
-    int num_palette;
-    int num_trans;
+    unsigned char** row_pointers;
+    unsigned char* indexed_data;
+    unsigned int num_palette;
+    unsigned int num_trans;
     png_color palette[256];
     unsigned char trans[256];
-    unsigned char* indexed_data;
-    unsigned char** row_pointers;
 };
 
-union read_or_write_info {
+union png_image {
     jmp_buf jmpbuf;
-    read_info read;
-    write_info write;
+    png24_image png24;
+    png8_image png8;
 };
 
 /* prototypes for public functions in rwpng.c */
 
-void rwpng_version_info(FILE* fp);
+void rwpng_version_info(FILE *fp);
 
-pngquant_error rwpng_read_image(FILE* infile, read_info* mainprog_ptr);
+pngquant_error rwpng_read_image24(FILE* infile, png24_image* mainprog_ptr);
+pngquant_error rwpng_write_image8(FILE* outfile, png8_image* mainprog_ptr);
+pngquant_error rwpng_write_image24(FILE* outfile, png24_image* mainprog_ptr);
 
-pngquant_error rwpng_write_image_init(FILE* outfile, write_info* mainprog_ptr);
-
-pngquant_error rwpng_write_image_whole(write_info* mainprog_ptr);
-
-int rwpng_write_image_row(write_info* mainprog_ptr);
-
-int rwpng_write_image_finish(write_info* mainprog_ptr);
 
 static const double SRGB_GAMMA = 0.45455; // 1.0/2.2

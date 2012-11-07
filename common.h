@@ -1,0 +1,2 @@
+
+#define RESTRICT __restrict

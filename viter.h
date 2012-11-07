@@ -1,24 +1,35 @@
 #pragma once
 
+
+struct viter_state {
+    double a, r, g, b, total;
+};
+
+typedef void (*viter_callback)(hist_item* item, double diff);
+
 void viter_init(
-	const std::vector<colormap_item>& map,
-	f_pixel* average_color, double* average_color_count, f_pixel* base_color, double* base_color_count
-	);
+	const colormap* map,
+	viter_state state[]
+);
 
 void viter_update_color(
-	f_pixel acolor, double value, std::vector<colormap_item>& map, int match,
-	f_pixel* average_color, double* average_color_count,
-	const f_pixel* base_color, const double* base_color_count
-	);
-
-double viter_do_interation(
-	const std::vector<hist_item>& hist,
-	std::vector<colormap_item>& map,
-	double min_opaque_val
-	);
+	const f_pixel acolor,
+	const double value,
+	const colormap* map,
+	int match,
+	viter_state state[]
+);
 
 void viter_finalize(
-	std::vector<colormap_item>& map,
-	const f_pixel* average_color, const double* average_color_count
-	);
+	colormap* map,
+	const viter_state state[]
+);
+
+double viter_do_iteration(
+	histogram* hist,
+	colormap* const map,
+	const double min_opaque_val,
+	viter_callback callback
+);
+
 

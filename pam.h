@@ -18,6 +18,10 @@
 #include <math.h>
 #include <assert.h>
 
+#include "mempool.h"
+
+#define MAX_DIFF 1e20
+
 template <typename T>
 T min(T a, T b)
 {
@@ -85,6 +89,7 @@ T limitValue(T val, T min, T max)
 /* from pam.h */
 
 struct rgb_pixel {
+/*
 	rgb_pixel(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
 		:
 		r(r),
@@ -93,9 +98,7 @@ struct rgb_pixel {
 		a(a)
 	{
 	}
-	
-	rgb_pixel() {}
-
+*/
 	unsigned char r, g, b, a;
 
 	rgb_pixel& operator *= (int v)
@@ -210,10 +213,10 @@ struct f_pixel {
 
 	f_pixel& abs()
 	{
-		alpha = fabs(alpha);
-		r = fabs(r);
-		g = fabs(g);
-		b = fabs(b);
+		alpha = ::abs(alpha);
+		r = ::abs(r);
+		g = ::abs(g);
+		b = ::abs(b);
 		return *this;
 	}
 
@@ -222,8 +225,8 @@ struct f_pixel {
 	
 	union {
 		struct { double r, g, b; };
-		struct { double x, y, z; };
-		struct { double l, a, b; };
+//		struct { double x, y, z; };
+//		struct { double l, a, b; };
 		double arr[3];
 	};
 };
@@ -291,10 +294,10 @@ bool operator == (const f_pixel& l, const f_pixel& r)
 }
 
 // http://www.cgsd.com/papers/gamma_colorspace.html
-static const double INTERNAL_GAMMA = 0.9;	// adjust this value depends on image hehehe
+static const double INTERNAL_GAMMA = 0.45455;	// adjust this value depends on image hehehe
 
 /**
- Converts scalar color to internal gamma and premultiplied alpha.
+ Converts 8-bit color to internal gamma and premultiplied alpha.
  (premultiplied color space is much better for blending of semitransparent colors)
  */
 static inline
@@ -329,27 +332,37 @@ static inline
 rgb_pixel to_rgb(double gamma, f_pixel px)
 {
 	if (px.alpha < 1.0/256.0) {
-		rgb_pixel ret(0,0,0,0);
+		rgb_pixel ret;
+		ret.r = ret.g = ret.b = ret.a = 0;
 		return ret;
 	}
 
-	double r,g,b,a;
+    double r = px.r / px.alpha,
+          g = px.g / px.alpha,
+          b = px.b / px.alpha,
+          a = px.alpha;
 
-	gamma /= INTERNAL_GAMMA;
+    if (gamma != INTERNAL_GAMMA) {
+        r = pow(r, gamma/INTERNAL_GAMMA);
+        g = pow(g, gamma/INTERNAL_GAMMA);
+        b = pow(b, gamma/INTERNAL_GAMMA);
+    }
 
-	// 256, because numbers are in range 1..255.9999… rounded down
-	r = pow(px.r/px.alpha, gamma)*256.0;
-	g = pow(px.g/px.alpha, gamma)*256.0;
-	b = pow(px.b/px.alpha, gamma)*256.0;
-	a = px.alpha*256.0;
+    // 256, because numbers are in range 1..255.9999… rounded down
+    r *= 256.0;
+    g *= 256.0;
+    b *= 256.0;
+    a *= 256.0;
 
 	rgb_pixel ret;
-	ret.r = r>=255 ? 255 : (r<=0 ? 0 : r);
-	ret.g = g>=255 ? 255 : (g<=0 ? 0 : g);
-	ret.b = b>=255 ? 255 : (b<=0 ? 0 : b);
-	ret.a = a>=255 ? 255 : a;
+	ret.r = r>=255.0 ? 255 : (r<=0.0 ? 0 : r);
+	ret.g = g>=255.0 ? 255 : (g<=0.0 ? 0 : g);
+	ret.b = b>=255.0 ? 255 : (b<=0.0 ? 0 : b);
+	ret.a = a>=255.0 ? 255 : a;
 	return ret;
 }
+
+#if 0
 
 static inline
 f_pixel rgb2xyz(f_pixel rgb)
@@ -485,26 +498,49 @@ f_pixel lab2rgb(f_pixel lab)
 	return xyz2rgb(lab2xyz(lab));
 }
 
+#endif
+
+inline static double colordifference_ch(const double x, const double y, const double alphas)
+{
+    // maximum of channel blended on white, and blended on black
+    // premultiplied alpha and backgrounds 0/1 shorten the formula
+    const double black = x-y, white = black+alphas;
+    return max(black*black, white*white);
+}
+
+static inline
+double colordifference_stdc(const f_pixel px, const f_pixel py)
+{
+    const double alphas = py.alpha - px.alpha;
+    return colordifference_ch(px.r, py.r, alphas) +
+           colordifference_ch(px.g, py.g, alphas) +
+           colordifference_ch(px.b, py.b, alphas);
+}
+
 static inline
 double colordifference(f_pixel px, f_pixel py)
 {
-	f_pixel diff = px - py;
-	
-	diff.square();
-	return 
-		diff.alpha * 3.0
-		+ diff.l
-		+ diff.a
-		+ diff.b
-		;
+    return colordifference_stdc(px,py);
 }
 
 /* from pamcmap.h */
+union rgb_as_long {
+    rgb_pixel rgb;
+    unsigned long l;
+};
 
 struct hist_item {
 	f_pixel acolor;
-	double adjusted_weight;
-	double perceptual_weight;
+    double adjusted_weight,   // perceptual weight changed to tweak how mediancut selects colors
+          perceptual_weight; // number of pixels weighted by importance of different areas of the picture
+
+    double color_weight; unsigned long sort_value; // these two change every time histogram subset is sorted
+};
+
+struct histogram {
+    hist_item* achv;
+    double total_perceptual_weight;
+    unsigned int size;
 };
 
 struct colormap_item {
@@ -518,11 +554,6 @@ struct acolorhist_list_item {
 	double perceptual_weight;
 };
 
-struct acolorhash_table {
-	struct mempool* mempool;
-	acolorhist_list_item** buckets;
-};
-
 int best_color_index(
 	const std::vector<colormap_item>& map,
 	f_pixel px,
@@ -534,4 +565,34 @@ std::vector<hist_item> pam_computeacolorhist(
 	int maxacolors, int ignorebits,
 	const double* importance_map
 	);
+
+
+struct colormap {
+    colormap_item* palette;
+    colormap* subset_palette;
+    unsigned int colors;
+};
+
+struct acolorhist_arr_item {
+    rgb_as_long color;
+    double perceptual_weight;
+};
+
+struct acolorhist_arr_head {
+    unsigned int used, capacity;
+    acolorhist_arr_item* other_items;
+    rgb_as_long color1, color2;
+    double perceptual_weight1, perceptual_weight2;
+};
+
+struct acolorhash_table {
+    mempool* mempool;
+    acolorhist_arr_head* buckets;
+};
+
+histogram* pam_computeacolorhist(const rgb_pixel*const apixels[], unsigned int cols, unsigned int rows, double gamma, unsigned int maxacolors, unsigned int ignorebits, const double* imp);
+void pam_freeacolorhist(histogram* h);
+
+colormap* pam_colormap(unsigned int colors);
+void pam_freecolormap(colormap *c);
 

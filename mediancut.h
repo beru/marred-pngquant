@@ -1,5 +1,9 @@
 #pragma once
 
-#include <vector>
-
-std::vector<colormap_item> mediancut(std::vector<hist_item>& hist, double min_opaque_val, int reqcolors);
+colormap*
+mediancut(
+	histogram* hist,
+	const double min_opaque_val,
+	unsigned int newcolors,
+	const double target_mse
+);

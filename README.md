@@ -4,11 +4,26 @@ This is a [fork](https://github.com/beru/marred-pngquant) of [improved-pngquant]
 
 original README.md below
 ------------------
-#PNGquant-improved
 
-This is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org/pub/png/apps/pngquant.html).
+#pngquant
 
-##Improvements
+This the [official](http://www.libpng.org/pub/png/apps/pngquant.html) [new](http://pngquant.org) `pngquant`.
+
+pngquant converts 24/32-bit RGBA PNGs to 8-bit palette with *alpha channel preserved*. Such images are compatible with all modern browsers, and a special compatibility setting exists which helps transparency degrade well in Internet Explorer 6.
+
+Quantized files are often 40-70% smaller than their 24/32-bit version.
+
+This utility works on Linux, Mac OS X and Windows.
+
+##Usage
+
+- batch conversion of multiple files: `pngquant 256 *.png`
+- Unix-style stdin/stdout chaining: `… | pngquant 16 | …`
+
+To further reduce file size, you may want to consider [optipng](http://optipng.sourceforge.net) or [ImageOptim](http://imageoptim.pornel.net).
+
+
+##Improvements since 1.0
 
 * Significantly better quality of quantisation
 
@@ -17,8 +32,8 @@ This is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org
   - additional colormap improvement using Voronoi iteration
   - supports much larger number of colors in input images without degradation of quality
   - more accurate remapping of semitransparent colors
+  - special dithering algorithm that does not add noise in well-quantized areas of the image
   - gamma correction (output is always generated with gamma 2.2 for web compatibility)
-  - floating-point math used throughout (more accurate colors and dithering)
 
 * More flexible commandline usage
 
@@ -27,71 +42,34 @@ This is a [fork](http://pornel.net/pngquant) of [pngquant](http://www.libpng.org
 
 * Refactored and modernised code
 
-  - no workarounds for MSDOS and machines with 1MB of RAM
-  - C99
+  - C99 with no workarounds for old systems
+  - floating-point math used throughout
   - Intel SSE3 optimisations
 
-##Aboug PNGquant
-
-Typically, pngquant is used to convert 32-bit RGBA PNGs to 8-bit RGBA-palette
-PNGs in order to save file space. For example, for the web.
-
-This utility works on Linux and UNIX systems (including Mac OS X) and should
-work on modern Windows platforms.
-
-Pngquant provides the following features:
-
-- reduction of all PNG image types to a palette with 256 colors or less
-- diffusion (Floyd-Steinberg)
-- automatic optimization of tRNS chunks
-- batch conversion of multiple files, e.g.: `pngquant 256 *.png`
-- Unix-style stdin/stdout chaining, e.g.: `… | pngquant 16 | …`
-
-These features are currently lacking:
-
-- no ancillary chunk preservation
-- no preservation of significant-bits info after rescaling (sBIT chunk)
-- no mapfile support
-- no "native" handling of 16-bit-per-sample files or gray+alpha files
-  (i.e. all samples are truncated to 8 bits and all images are promoted
-  to RGBA before quantization)
-
-If the goal is to reduce file size, then be sure to check the file size before
-and after quantization. Although palette-based images are typically much smaller
-than RGBA-images, they don't compress nearly as well as grayscale and truecolor
-images.
-
-To further reduce file size, you may want to consider the following tools:
-
-- pngcrush - http://pmt.sourceforge.net/pngcrush/
-- optipng  - http://optipng.sourceforge.net/
-
-For copyright and license information, check out the COPYRIGHT file. For the
-change log, see the CHANGELOG file.
-
-The INSTALL file explains how to build pngquant from source.
 
 ##Options
 
 See `pngquant -h` for full list.
 
-###`-ext new.png`
+###`--quality min-max`
 
-Set custom extension for output filename. By default `-or8.png` or `-fs8.png` is used.
+`min` and `max` are numbers in range 0 (worst) to 100 (perfect), similar to JPEG. pngquant will use the least amount of colors required to meet or exceed the `max` quality. If conversion results in quality below the `min` quality the image won't be saved (if outputting to stdin, 24-bit original will be output) and pngquant will exit with status code 99.
 
-###`-speed N`
+    pngquant --quality=65-80 image.png
 
-Speed/quality trade-off. The default is 3 and lower settings rarely increase quality, but are much slower.
+###`--ext new.png`
 
-- Speeds 1-6 use feedback loop mechanism (quantize image, find worst colors, quantize again with more weight on these colors).
+Set custom extension (suffix) for output filename. By default `-or8.png` or `-fs8.png` is used. If you use `-ext .png -force` options pngquant will overwrite input files in place (use with caution).
 
-- Speeds 8-10 reduce input depth from 8 bit per gun to 7 bit (posterize to 128 levels) or less, if image has *a lot* of distinct colors.
+###`--speed N`
 
-###`-iebug`
+Speed/quality trade-off from 1 (brute-force) to 10 (fastest). The default is 3. Speed 10 has 5% lower quality, but is 8 times faster than the default.
 
-Workaround for IE6, which only displays fully opaque pixels. PNGquant will make almost-opaque pixels fully opaque and will avoid creating new transparent colors.
+###`--iebug`
 
-###`-version`
+Workaround for IE6, which only displays fully opaque pixels. pngquant will make almost-opaque pixels fully opaque and will avoid creating new transparent colors.
+
+###`--version`
 
 Print version information to stdout.
 
@@ -104,6 +82,4 @@ Read image from stdin and send result to stdout.
 Stops processing of arguments. This allows use of file names that start with `-`. If you're using pngquant in a script, it's advisable to put this before file names:
 
     pngquant $OPTIONS -- "$FILE"
-
-
 

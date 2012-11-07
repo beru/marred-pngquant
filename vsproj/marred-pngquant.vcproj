@@ -21,7 +21,7 @@
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
-			CharacterSet="1"
+			CharacterSet="2"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -41,15 +41,15 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="c:\libs\zlib/;c:\libs\libpng/"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS"
+				AdditionalIncludeDirectories="c:\libs\zlib/;c:\libs\libpng/;../"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;STATIC_GETOPT"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
-				ForcedIncludeFiles="zlib.h"
+				ForcedIncludeFiles="common.h"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -181,6 +181,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\getopt.c"
+				>
+			</File>
+			<File
 				RelativePath="..\mediancut.cpp"
 				>
 			</File>
@@ -189,15 +193,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\nearest.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\pam.cpp"
 				>
 			</File>
 			<File
 				RelativePath="..\pngquant.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\remap.cpp"
 				>
 			</File>
 			<File
@@ -219,6 +223,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\common.h"
+				>
+			</File>
+			<File
+				RelativePath="..\getopt.h"
+				>
+			</File>
+			<File
 				RelativePath="..\mediancut.h"
 				>
 			</File>
@@ -227,11 +239,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\pam.h"
+				RelativePath="..\nearest.h"
 				>
 			</File>
 			<File
-				RelativePath="..\remap.h"
+				RelativePath="..\pam.h"
 				>
 			</File>
 			<File
