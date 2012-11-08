@@ -18,12 +18,12 @@
 
 #include "mempool.h"
 
-#define HASH_SIZE ((1<<19) / sizeof(struct acolorhist_arr_head) - 17)
+#define HASH_SIZE ((1<<19) / sizeof(acolorhist_arr_head) - 17)
 
 static
 histogram* pam_acolorhashtoacolorhist(
 	acolorhash_table* acht,
-	unsigned int hist_size,
+	uint hist_size,
 	double gamma
 	)
 {
@@ -33,7 +33,7 @@ histogram* pam_acolorhashtoacolorhist(
 
 	/* Loop through the hash table. */
 	double total_weight=0;
-	for (unsigned int j=0, i=0; i<HASH_SIZE; ++i) {
+	for (uint j=0, i=0; i<HASH_SIZE; ++i) {
 		acolorhist_arr_head* achl = &acht->buckets[i];
 		if (achl->used) {
 			hist->achv[j].acolor = to_f(gamma, achl->color1.rgb);
@@ -48,7 +48,7 @@ histogram* pam_acolorhashtoacolorhist(
 				++j;
 
 				acolorhist_arr_item* a = achl->other_items;
-				for (unsigned int i=0; i<achl->used-2; i++) {
+				for (uint i=0; i<achl->used-2; i++) {
 					hist->achv[j].acolor = to_f(gamma, a[i].color.rgb);
 					hist->achv[j].adjusted_weight = hist->achv[j].perceptual_weight = a[i].perceptual_weight;
 					total_weight += a[i].perceptual_weight;
@@ -82,38 +82,38 @@ void pam_freeacolorhash(acolorhash_table* acht)
 static
 acolorhash_table* pam_computeacolorhash(
 	const rgb_pixel*const* apixels,
-	unsigned int cols,
-	unsigned int rows,
+	uint cols,
+	uint rows,
 	double gamma,
-	unsigned int maxacolors,
-	unsigned int ignorebits,
+	uint maxacolors,
+	uint ignorebits,
 	const double* importance_map,
-	unsigned int* acolorsP
+	uint* acolorsP
 	)
 {
-	const unsigned int channel_mask = 255>>ignorebits<<ignorebits;
-	const unsigned int channel_hmask = (255>>(ignorebits)) ^ 0xFF;
-	const unsigned int posterize_mask = channel_mask << 24 | channel_mask << 16 | channel_mask << 8 | channel_mask;
-	const unsigned int posterize_high_mask = channel_hmask << 24 | channel_hmask << 16 | channel_hmask << 8 | channel_hmask;
+	const uint channel_mask = 255>>ignorebits<<ignorebits;
+	const uint channel_hmask = (255>>(ignorebits)) ^ 0xFF;
+	const uint posterize_mask = channel_mask << 24 | channel_mask << 16 | channel_mask << 8 | channel_mask;
+	const uint posterize_high_mask = channel_hmask << 24 | channel_hmask << 16 | channel_hmask << 8 | channel_hmask;
 
 	acolorhash_table* acht = pam_allocacolorhash();
-	acolorhist_arr_head *const buckets = acht->buckets;
+	acolorhist_arr_head* const buckets = acht->buckets;
 
-	unsigned int colors=0;
+	uint colors=0;
 	
-	const unsigned int stacksize = 512;
+	const uint stacksize = 512;
 	acolorhist_arr_item* freestack[stacksize];
-	unsigned int freestackp=0;
+	uint freestackp=0;
 
 	/* Go through the entire image, building a hash table of colors. */
-	for (unsigned int row=0; row<rows; ++row) {
+	for (uint row=0; row<rows; ++row) {
 
 		double boost=1.0;
-		for (unsigned int col=0; col<cols; ++col) {
+		for (uint col=0; col<cols; ++col) {
 			if (importance_map) {
 				boost = 0.5f+*importance_map++;
 			}
-
+			
 			// RGBA color is casted to long for easier hasing/comparisons
 			rgb_as_long px = {apixels[row][col]};
 			unsigned long hash;
@@ -126,7 +126,7 @@ acolorhash_table* pam_computeacolorhash(
 				// fancier hashing algorithms didn't improve much
 				hash = px.l % HASH_SIZE;
 			}
-
+			
 			/* head of the hash function stores first 2 colors inline (achl->used = 1..2),
 			   to reduce number of allocations of achl->other_items.
 			 */
@@ -143,14 +143,14 @@ acolorhash_table* pam_computeacolorhash(
 					}
 					// other items are stored as an array (which gets reallocated if needed)
 					acolorhist_arr_item* other_items = achl->other_items;
-					unsigned int i = 0;
+					uint i = 0;
 					for (; i<achl->used-2; i++) {
 						if (other_items[i].color.l == px.l) {
 							other_items[i].perceptual_weight += boost;
 							goto continue_outer_loop;
 						}
 					}
-
+					
 					// the array was allocated with spare items
 					if (i < achl->capacity) {
 						acolorhist_arr_item item;
@@ -161,18 +161,18 @@ acolorhash_table* pam_computeacolorhash(
 						++colors;
 						continue;
 					}
-
+					
 					if (++colors > maxacolors) {
 						pam_freeacolorhash(acht);
 						return NULL;
 					}
-
+					
 					acolorhist_arr_item* new_items;
-					unsigned int capacity;
+					uint capacity;
 					if (!other_items) { // there was no array previously, alloc "small" array
 						capacity = 8;
 						if (freestackp <= 0) {
-							new_items = (acolorhist_arr_item*) mempool_new(acht->mempool, sizeof(struct acolorhist_arr_item)*capacity);
+							new_items = (acolorhist_arr_item*) mempool_new(acht->mempool, sizeof(acolorhist_arr_item)*capacity);
 						}else {
 							// freestack stores previously freed (reallocated) arrays that can be reused
 							// (all pesimistically assumed to be capacity = 8)
@@ -184,10 +184,9 @@ acolorhash_table* pam_computeacolorhash(
 						if (freestackp < stacksize-1) {
 							freestack[freestackp++] = other_items;
 						}
-						new_items = (acolorhist_arr_item*) mempool_new(acht->mempool, sizeof(struct acolorhist_arr_item)*capacity);
+						new_items = (acolorhist_arr_item*) mempool_new(acht->mempool, sizeof(acolorhist_arr_item)*capacity);
 						memcpy(new_items, other_items, sizeof(other_items[0])*achl->capacity);
 					}
-
 					achl->other_items = new_items;
 					achl->capacity = capacity;
 					acolorhist_arr_item item;
@@ -208,7 +207,6 @@ acolorhash_table* pam_computeacolorhash(
 				achl->used = 1;
 				++colors;
 			}
-
 			continue_outer_loop:;
 		}
 
@@ -244,18 +242,18 @@ void pam_freeacolorhist(histogram* hist)
  */
 histogram* pam_computeacolorhist(
 	const rgb_pixel*const apixels[],
-	unsigned int cols,
-	unsigned int rows,
+	uint cols,
+	uint rows,
 	double gamma,
-	unsigned int maxacolors,
-	unsigned int ignorebits,
+	uint maxacolors,
+	uint ignorebits,
 	const double* importance_map
 	)
 {
 	acolorhash_table* acht;
-	histogram *hist;
+	histogram* hist;
 
-	unsigned int hist_size=0;
+	uint hist_size=0;
 	acht = pam_computeacolorhash(apixels, cols, rows, gamma, maxacolors, ignorebits, importance_map, &hist_size);
 	if (!acht) return 0;
 
@@ -264,7 +262,7 @@ histogram* pam_computeacolorhist(
 	return hist;
 }
 
-colormap *pam_colormap(unsigned int colors)
+colormap* pam_colormap(uint colors)
 {
 	colormap* map = (colormap*) malloc(sizeof(colormap));
 	map->palette = (colormap_item*) calloc(colors, sizeof(map->palette[0]));
@@ -278,5 +276,4 @@ void pam_freecolormap(colormap* c)
 	if (c->subset_palette) pam_freecolormap(c->subset_palette);
 	free(c->palette); free(c);
 }
-
 

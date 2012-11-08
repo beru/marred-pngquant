@@ -1,8 +1,8 @@
 #pragma once
 
-
 struct viter_state {
-    double a, r, g, b, total;
+	f_pixel color;
+    double total;
 };
 
 typedef void (*viter_callback)(hist_item* item, double diff);
@@ -13,7 +13,7 @@ void viter_init(
 );
 
 void viter_update_color(
-	const f_pixel acolor,
+	f_pixel acolor,
 	const double value,
 	const colormap* map,
 	int match,

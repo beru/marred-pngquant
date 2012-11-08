@@ -9,39 +9,39 @@ static
 void transposing_1d_blur(
 	const double* src,
 	double* dst,
-	unsigned int width,
-	unsigned int height,
-	const unsigned int size
+	uint width,
+	uint height,
+	const uint size
 	)
 {
 	const double sizef = size;
 	const double sizef2 = 1.0 / (sizef*2.0);
-	for (unsigned int j=0; j<height; ++j) {
+	for (uint j=0; j<height; ++j) {
 		const double* row = src + j*width;
 		double* dstLine = dst + j;
 
 		// accumulate sum for pixels outside line
 		double sum;
 		sum = row[0] * sizef;
-		for (unsigned int i=0; i<size; ++i) {
+		for (uint i=0; i<size; ++i) {
 			sum += row[i];
 		}
 		
 		// blur with left side outside line
-		for (unsigned int i=0; i<size; ++i) {
+		for (uint i=0; i<size; ++i) {
 			sum -= row[0];
 			sum += row[i+size];
 			dstLine[i*height] = sum * sizef2;
 		}
 		
-		for (unsigned int i=size; i<width-size; ++i) {
+		for (uint i=size; i<width-size; ++i) {
 			sum -= row[i-size];
 			sum += row[i+size];
 			dstLine[i*height] = sum * sizef2;
 		}
 		
 		// blur with right side outside line
-		for (unsigned int i=width-size; i<width; ++i) {
+		for (uint i=width-size; i<width; ++i) {
 			sum -= row[i-size];
 			sum += row[width-1];
 			dstLine[i*height] = sum * sizef2;
@@ -55,11 +55,11 @@ void transposing_1d_blur(
 void max3(
 	const double* src,
 	double* dst,
-	unsigned int width,
-	unsigned int height
+	uint width,
+	uint height
 	)
 {
-	for (unsigned int j=0; j<height; ++j) {
+	for (uint j=0; j<height; ++j) {
 		const double* row = src + j*width,
 		*prevrow = src + (j>1 ? j-1 : 0)*width,
 		*nextrow = src + min(height-1,j+1)*width;
@@ -68,7 +68,7 @@ void max3(
 		double curr = row[0];
 		double next = row[0];
 		
-		for (unsigned int i=0; i<width-1; ++i) {
+		for (uint i=0; i<width-1; ++i) {
 			prev = curr;
 			curr = next;
 			next = row[i+1];
@@ -84,11 +84,11 @@ void max3(
 void min3(
 	const double* src,
 	double* dst,
-	unsigned int width,
-	unsigned int height
+	uint width,
+	uint height
 	)
 {
-	for (unsigned int j=0; j<height; ++j) {
+	for (uint j=0; j<height; ++j) {
 		const double* row = src + j*width,
 		*prevrow = src + (j>1 ? j-1 : 0)*width,
 		*nextrow = src + min(height-1,j+1)*width;
@@ -97,7 +97,7 @@ void min3(
 		double curr = row[0];
 		double next = row[0];
 		
-		for (unsigned int i=0; i<width-1; ++i) {
+		for (uint i=0; i<width-1; ++i) {
 			prev = curr;
 			curr = next;
 			next = row[i+1];
@@ -116,9 +116,9 @@ void blur(
 	const double* src,
 	double* tmp,
 	double* dst,
-	unsigned int width,
-	unsigned int height,
-	unsigned int size
+	uint width,
+	uint height,
+	uint size
 	)
 {
     if (width<2*size+1 || height<2*size+1) return;

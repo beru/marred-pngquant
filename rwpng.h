@@ -80,7 +80,7 @@ union png_image {
 
 /* prototypes for public functions in rwpng.c */
 
-void rwpng_version_info(FILE *fp);
+void rwpng_version_info(FILE* fp);
 
 pngquant_error rwpng_read_image24(FILE* infile, png24_image* mainprog_ptr);
 pngquant_error rwpng_write_image8(FILE* outfile, png8_image* mainprog_ptr);

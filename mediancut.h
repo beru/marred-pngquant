@@ -4,6 +4,7 @@ colormap*
 mediancut(
 	histogram* hist,
 	const double min_opaque_val,
-	unsigned int newcolors,
+	uint newcolors,
 	const double target_mse
 );
+

@@ -333,7 +333,7 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 {
 	if (px.alpha < 1.0/256.0) {
 		rgb_pixel ret;
-		ret.r = ret.g = ret.b = ret.a = 0;
+		ret.r = ret.g = ret.b = ret.a = 0.0;
 		return ret;
 	}
 
@@ -540,7 +540,7 @@ struct hist_item {
 struct histogram {
     hist_item* achv;
     double total_perceptual_weight;
-    unsigned int size;
+    uint size;
 };
 
 struct colormap_item {
@@ -570,7 +570,7 @@ std::vector<hist_item> pam_computeacolorhist(
 struct colormap {
     colormap_item* palette;
     colormap* subset_palette;
-    unsigned int colors;
+    uint colors;
 };
 
 struct acolorhist_arr_item {
@@ -579,7 +579,7 @@ struct acolorhist_arr_item {
 };
 
 struct acolorhist_arr_head {
-    unsigned int used, capacity;
+    uint used, capacity;
     acolorhist_arr_item* other_items;
     rgb_as_long color1, color2;
     double perceptual_weight1, perceptual_weight2;
@@ -590,9 +590,9 @@ struct acolorhash_table {
     acolorhist_arr_head* buckets;
 };
 
-histogram* pam_computeacolorhist(const rgb_pixel*const apixels[], unsigned int cols, unsigned int rows, double gamma, unsigned int maxacolors, unsigned int ignorebits, const double* imp);
+histogram* pam_computeacolorhist(const rgb_pixel*const apixels[], uint cols, uint rows, double gamma, uint maxacolors, uint ignorebits, const double* imp);
 void pam_freeacolorhist(histogram* h);
 
-colormap* pam_colormap(unsigned int colors);
+colormap* pam_colormap(uint colors);
 void pam_freecolormap(colormap *c);
 
