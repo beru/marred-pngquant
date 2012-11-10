@@ -621,15 +621,11 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 
 			// Error must be clamped, otherwise it can accumulate so much that it will be
 			// impossible to compensate it, causing color streaks
-			if (sr < 0.0) sr = 0.0;
-			else if (sr > 1.0) sr = 1.0;
-			if (sg < 0.0) sg = 0.0;
-			else if (sg > 1.0) sg = 1.0;
-			if (sb < 0.0) sb = 0.0;
-			else if (sb > 1.0) sb = 1.0;
-			if (sa < 0.0) sa = 0.0;
-			else if (sa > 1.0) sa = 1.0;
-
+			sr = limitValue(sr, 0.0, 1.0);
+			sg = limitValue(sg, 0.0, 1.0);
+			sb = limitValue(sb, 0.0, 1.0);
+			sa = limitValue(sa, 0.0, 1.0);
+			
 			uint ind;
 			if (sa < 1.0/256.0) {
 				ind = transparent_ind;
