@@ -116,7 +116,8 @@ static inline void hist_item_swap(hist_item* l, hist_item* r)
 	}
 }
 
-inline static uint qsort_pivot(const hist_item* const base, const uint len)
+inline static
+uint qsort_pivot(const hist_item* const base, const uint len)
 {
 	if (len < 32) return len/2;
 	
@@ -126,7 +127,8 @@ inline static uint qsort_pivot(const hist_item* const base, const uint len)
 				   : ((b > c) ? bidx : ((a < c) ? aidx : cidx ));
 }
 
-inline static uint qsort_partition(hist_item* const base, const uint len)
+inline static
+uint qsort_partition(hist_item* const base, const uint len)
 {
 	uint l = 1, r = len;
 	if (len >= 8) {
@@ -149,7 +151,8 @@ inline static uint qsort_partition(hist_item* const base, const uint len)
 }
 
 /** this is a simple qsort that completely sorts only elements between sort_start and +sort_len. Used to find median of the set. */
-static void hist_item_sort_range(hist_item *base, uint len, int sort_start, const uint sort_len)
+static
+void hist_item_sort_range(hist_item *base, uint len, int sort_start, const uint sort_len)
 {
 	do {
 		const uint l = qsort_partition(base, len), r = l+1;
@@ -164,7 +167,8 @@ static void hist_item_sort_range(hist_item *base, uint len, int sort_start, cons
 }
 
 /** sorts array to make sum of weights lower than halfvar one side, returns edge between <halfvar and >halfvar parts of the set */
-static hist_item* hist_item_sort_halfvar(hist_item* base, uint len, double* const lowervar, const double halfvar)
+static
+hist_item* hist_item_sort_halfvar(hist_item* base, uint len, double* const lowervar, const double halfvar)
 {
 	do {
 		const uint l = qsort_partition(base, len), r = l+1;
@@ -196,7 +200,8 @@ static hist_item* hist_item_sort_halfvar(hist_item* base, uint len, double* cons
 }
 
 /** finds median in unsorted set by sorting only minimum required */
-static f_pixel get_median(const box *b, hist_item achv[])
+static
+f_pixel get_median(const box *b, hist_item achv[])
 {
 	const uint median_start = (b->colors-1)/2;
 
@@ -229,7 +234,8 @@ bool operator < (const channelvariance& ch1, const channelvariance& ch2)
 }
 
 /** Finds which channels need to be sorted first and preproceses achv for fast sort */
-static double prepare_sort(box* b, hist_item achv[])
+static
+double prepare_sort(box* b, hist_item achv[])
 {
 	/*
 	 ** Sort dimensions by their variance, and then sort colors first by dimension with highest variance
@@ -348,7 +354,8 @@ double box_error(const box* box, const hist_item achv[])
 }
 
 
-static int total_box_error_below_target(double target_mse, box bv[], int boxes, const histogram *hist)
+static
+int total_box_error_below_target(double target_mse, box bv[], int boxes, const histogram *hist)
 {
 	target_mse *= hist->total_perceptual_weight;
 	double total_error=0;

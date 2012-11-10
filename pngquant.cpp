@@ -79,7 +79,8 @@ void verbose_printf(const char* fmt, ...)
 	va_end(va);
 }
 
-static void print_full_version(FILE* fd)
+static
+void print_full_version(FILE* fd)
 {
 	fprintf(fd, "pngquant, version %s, by Greg Roelofs, Kornel Lesinski.\n"
 		#ifndef NDEBUG
@@ -96,12 +97,14 @@ static void print_full_version(FILE* fd)
 	fputs("\n", fd);
 }
 
-static void print_usage(FILE* fd)
+static
+void print_usage(FILE* fd)
 {
 	fputs(PNGQUANT_USAGE, fd);
 }
 
-static double quality_to_mse(long quality)
+static
+double quality_to_mse(long quality)
 {
 	if (quality == 0) return MAX_DIFF;
 
@@ -117,7 +120,8 @@ static double quality_to_mse(long quality)
  *
  * where N,M are numbers between 0 (lousy) and 100 (perfect)
  */
-static bool parse_quality(const char* quality, pngquant_options* options)
+static
+bool parse_quality(const char* quality, pngquant_options* options)
 {
 	long limit, target;
 	const char* str = quality; char* end;
@@ -167,7 +171,8 @@ static const struct {const char* old; char* newV;} obsolete_options[] = {
 	{"-speed", "--speed"},
 };
 
-static void fix_obsolete_options(const int argc, char* argv[])
+static
+void fix_obsolete_options(const int argc, char* argv[])
 {
 	for (uint argn=1; argn<argc; argn++) {
 		if ('-' != argv[argn][0]) continue;
@@ -415,7 +420,12 @@ bool compare_popularity(const colormap_item& v1, const colormap_item& v2)
 	return v1.popularity < v2.popularity;
 }
 
-static void sort_palette(png8_image* output_image, colormap* map, int last_index_transparent)
+static
+void sort_palette(
+	png8_image* output_image,
+	colormap* map,
+	int last_index_transparent
+	)
 {
 	assert(map); assert(output_image);
 	
@@ -473,7 +483,8 @@ static void sort_palette(png8_image* output_image, colormap* map, int last_index
 	output_image->num_trans = num_transparent;
 }
 
-static void set_palette(png8_image* output_image, colormap* map)
+static
+void set_palette(png8_image* output_image, colormap* map)
 {
 	for (uint x=0; x<map->colors; ++x) {
 		colormap_item& pal = map->palette[x];
@@ -490,7 +501,13 @@ static void set_palette(png8_image* output_image, colormap* map)
 	}
 }
 
-static double remap_to_palette(png24_image* input_image, png8_image* output_image, colormap* const map, const double min_opaque_val)
+static
+double remap_to_palette(
+	png24_image* input_image,
+	png8_image* output_image,
+	colormap* const map,
+	const double min_opaque_val
+	)
 {
 	const rgb_pixel *const *const input_pixels = (const rgb_pixel **)input_image->row_pointers;
 	unsigned char *const *const row_pointers = output_image->row_pointers;
@@ -702,7 +719,8 @@ static bool file_exists(const char *outname)
 /* build the output filename from the input name by inserting "-fs8" or
  * "-or8" before the ".png" extension (or by appending that plus ".png" if
  * there isn't any extension), then make sure it doesn't exist already */
-static char* add_filename_extension(const char* filename, const char* newext)
+static
+char* add_filename_extension(const char* filename, const char* newext)
 {
 	size_t x = strlen(filename);
 
@@ -717,14 +735,22 @@ static char* add_filename_extension(const char* filename, const char* newext)
 	return outname;
 }
 
-static void set_binary_mode(FILE* fp)
+static
+void set_binary_mode(FILE* fp)
 {
 #if defined(WIN32) || defined(__WIN32__)
 	_setmode(fp == stdout ? 1 : 0, O_BINARY);
 #endif
 }
 
-static pngquant_error write_image(png8_image* output_image, png24_image* output_image24, const char* outname, bool force, bool using_stdin)
+static
+pngquant_error write_image(
+	png8_image* output_image,
+	png24_image* output_image24,
+	const char* outname,
+	bool force,
+	bool using_stdin
+	)
 {
 	FILE* outfile;
 	if (using_stdin) {
@@ -807,7 +833,8 @@ histogram* get_histogram(
 	return hist;
 }
 
-static void modify_alpha(png24_image* input_image, const double min_opaque_val)
+static
+void modify_alpha(png24_image* input_image, const double min_opaque_val)
 {
 	/* IE6 makes colors with even slightest transparency completely transparent,
 	   thus to improve situation in IE, make colors that are less than ~10% transparent
@@ -841,7 +868,8 @@ static void modify_alpha(png24_image* input_image, const double min_opaque_val)
 	}
 }
 
-static pngquant_error read_image(const char* filename, int using_stdin, png24_image* input_image_p)
+static
+pngquant_error read_image(const char* filename, int using_stdin, png24_image* input_image_p)
 {
 	FILE* infile;
 	
@@ -876,7 +904,15 @@ static pngquant_error read_image(const char* filename, int using_stdin, png24_im
 	noise - approximation of areas with high-frequency noise, except straight edges. 1=flat, 0=noisy.
 	edges - noise map including all edges
  */
-static void contrast_maps(const rgb_pixel*const apixels[], const uint cols, const uint rows, const double gamma, double** noiseP, double** edgesP)
+static
+void contrast_maps(
+	const rgb_pixel*const apixels[],
+	const uint cols,
+	const uint rows,
+	const double gamma,
+	double** noiseP,
+	double** edgesP
+	)
 {
 	double* RESTRICT noise = (double*) malloc(sizeof(double)*cols*rows);
 	double* RESTRICT tmp = (double*) malloc(sizeof(double)*cols*rows);
@@ -939,7 +975,8 @@ static void contrast_maps(const rgb_pixel*const apixels[], const uint cols, cons
  * and peeks 1 pixel above/below. Full 2d algorithm doesn't improve it significantly.
  * Correct flood fill doesn't have visually good properties.
  */
-static void update_dither_map(const png8_image* output_image, double* edges)
+static
+void update_dither_map(const png8_image* output_image, double* edges)
 {
 	const uint width = output_image->width;
 	const uint height = output_image->height;
@@ -976,7 +1013,8 @@ static void update_dither_map(const png8_image* output_image, double* edges)
 	}
 }
 
-static void adjust_histogram_callback(hist_item* item, double diff)
+static
+void adjust_histogram_callback(hist_item* item, double diff)
 {
 	item->adjusted_weight = (item->perceptual_weight+item->adjusted_weight) * (sqrtf(1.0+diff));
 }
@@ -1057,7 +1095,12 @@ colormap* find_best_palette(
 	return acolormap;
 }
 
-static pngquant_error pngquant(png24_image* input_image, png8_image* output_image, const pngquant_options* options)
+static
+pngquant_error pngquant(
+	png24_image* input_image,
+	png8_image* output_image,
+	const pngquant_options* options
+	)
 {
 	const int speed_tradeoff = options->speed_tradeoff, reqcolors = options->reqcolors;
 	const double max_mse = options->max_mse, target_mse = options->target_mse;

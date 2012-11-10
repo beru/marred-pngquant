@@ -53,7 +53,8 @@ struct rwpng_read_data {
     png_size_t bytes_read;
 };
 
-static void user_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
+static
+void user_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
     rwpng_read_data* read_data = (rwpng_read_data*) png_get_io_ptr(png_ptr);
 
@@ -309,7 +310,8 @@ pngquant_error rwpng_write_image24(FILE* outfile, png24_image* mainprog_ptr)
 }
 
 
-static void rwpng_error_handler(png_structp png_ptr, png_const_charp msg)
+static
+void rwpng_error_handler(png_structp png_ptr, png_const_charp msg)
 {
     png_image* mainprog_ptr;
 
