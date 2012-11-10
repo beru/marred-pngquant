@@ -226,8 +226,8 @@ struct f_pixel {
 	
 	union {
 		struct { double r, g, b; };
-//		struct { double x, y, z; };
-//		struct { double l, a, b; };
+		struct { double x, y, z; };
+		struct { double l, a, b; };
 		double arr[3];
 	};
 };
@@ -334,7 +334,7 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 {
 	if (px.alpha < 1.0/256.0) {
 		rgb_pixel ret;
-		ret.r = ret.g = ret.b = ret.a = 0.0;
+		ret.r = ret.g = ret.b = ret.a = 0;
 		return ret;
 	}
 
@@ -363,7 +363,7 @@ rgb_pixel to_rgb(double gamma, f_pixel px)
 	return ret;
 }
 
-#if 0
+#if 1
 
 static inline
 f_pixel rgb2xyz(f_pixel rgb)
@@ -524,12 +524,6 @@ double colordifference(f_pixel px, f_pixel py)
     return colordifference_stdc(px,py);
 }
 
-/* from pamcmap.h */
-union rgb_as_long {
-    rgb_pixel rgb;
-    unsigned long l;
-};
-
 struct hist_item {
 	f_pixel acolor;
     double adjusted_weight,   // perceptual weight changed to tweak how mediancut selects colors
@@ -561,37 +555,23 @@ int best_color_index(
 	double* dist_out
 	);
 
-std::vector<hist_item> pam_computeacolorhist(
-	const f_pixel* input, size_t width, size_t height,
-	int maxacolors, int ignorebits,
-	const double* importance_map
-	);
-
-
 struct colormap {
     colormap_item* palette;
     colormap* subset_palette;
     uint colors;
 };
 
-struct acolorhist_arr_item {
-    rgb_as_long color;
-    double perceptual_weight;
-};
-
-struct acolorhist_arr_head {
-    uint used, capacity;
-    acolorhist_arr_item* other_items;
-    rgb_as_long color1, color2;
-    double perceptual_weight1, perceptual_weight2;
-};
-
 struct acolorhash_table {
     mempool* mempool;
-    acolorhist_arr_head* buckets;
+    acolorhist_list_item** buckets;
 };
 
-histogram* pam_computeacolorhist(const rgb_pixel*const apixels[], uint cols, uint rows, double gamma, uint maxacolors, uint ignorebits, const double* imp);
+std::vector<hist_item> pam_computeacolorhist(
+	const f_pixel* input, size_t width, size_t height,
+	uint maxacolors, uint ignorebits,
+	const double* importance_map
+);
+
 void pam_freeacolorhist(histogram* h);
 
 colormap* pam_colormap(uint colors);

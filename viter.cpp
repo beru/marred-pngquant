@@ -34,12 +34,10 @@ void viter_finalize(
 	)
 {
 	for (size_t i=0; i<map->colors; i++) {
-		f_pixel col(0.0, 0.0, 0.0, 0.0);
-        double total=0;
 		colormap_item& pal = map->palette[i];
 		const viter_state& s = average_color[i];
-		col += s.color;
-		total += s.total;
+		f_pixel col = s.color;
+		double total= s.total;
 		if (total) {
 			pal.acolor = col / total;
 		}
@@ -49,7 +47,7 @@ void viter_finalize(
 }
 
 double viter_do_iteration(
-	histogram* hist,
+	std::vector<hist_item>& hist,
 	colormap* const map,
 	double min_opaque_val,
 	viter_callback callback
@@ -58,14 +56,17 @@ double viter_do_iteration(
 	std::vector<viter_state> average_color(map->colors);
 	viter_init(map, &average_color[0]);
 	nearest_map* const n = nearest_init(map);
-	hist_item* const achv = hist->achv;
-	const int hist_size = hist->size;
+	hist_item* const achv = &hist[0];
+	const uint hist_size = hist.size();
 
-	double total_diff=0;
-	for (size_t j=0; j<hist->size; ++j) {
+	double total_diff = 0;
+	double total_perceptual_weight = 0;
+	for (size_t j=0; j<hist_size; ++j) {
 		double diff;
+		double perceptual_weight = achv[j].perceptual_weight;
 		uint match = nearest_search(n, achv[j].acolor, min_opaque_val, &diff);
-		total_diff += diff * achv[j].perceptual_weight;
+		total_diff += diff * perceptual_weight;
+		total_perceptual_weight += perceptual_weight;
 
 		viter_update_color(achv[j].acolor, achv[j].perceptual_weight, map, match, &average_color[0]);
 
@@ -74,7 +75,7 @@ double viter_do_iteration(
 	nearest_free(n);
 	viter_finalize(map, &average_color[0]);
 
-	return total_diff / hist->total_perceptual_weight;
+	return total_diff / total_perceptual_weight;
 
 }
 

@@ -26,7 +26,7 @@ void viter_finalize(
 );
 
 double viter_do_iteration(
-	histogram* hist,
+	std::vector<hist_item>& hist,
 	colormap* const map,
 	const double min_opaque_val,
 	viter_callback callback

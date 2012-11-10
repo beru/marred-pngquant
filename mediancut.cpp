@@ -335,7 +335,7 @@ void adjust_histogram(
 	}
 }
 
-double box_error(const box* box, const hist_item achv[])
+double box_error(const box* box, const std::vector<hist_item>& achv)
 {
 	f_pixel avg = box->color;
 
@@ -348,9 +348,13 @@ double box_error(const box* box, const hist_item achv[])
 }
 
 
-static int total_box_error_below_target(double target_mse, box bv[], int boxes, const histogram *hist)
+static int total_box_error_below_target(double target_mse, box bv[], int boxes, const std::vector<hist_item>& hist)
 {
-	target_mse *= hist->total_perceptual_weight;
+	double total_perceptual_weight = 0;
+	for (size_t i=0; i<hist.size(); ++i) {
+		total_perceptual_weight += hist[i].perceptual_weight;
+	}
+	target_mse *= total_perceptual_weight;
 	double total_error=0;
 	for (int i=0; i<boxes; i++) {
 		// error is (re)calculated lazily
@@ -362,7 +366,7 @@ static int total_box_error_below_target(double target_mse, box bv[], int boxes, 
 
 	for (int i=0; i<boxes; i++) {
 		if (bv[i].total_error < 0) {
-			bv[i].total_error = box_error(&bv[i], hist->achv);
+			bv[i].total_error = box_error(&bv[i], hist);
 			total_error += bv[i].total_error;
 		}
 		if (total_error > target_mse) return 0;
@@ -377,16 +381,16 @@ static int total_box_error_below_target(double target_mse, box bv[], int boxes, 
  ** on Paul Heckbert's paper, "Color Image Quantization for Frame Buffer
  ** Display," SIGGRAPH 1982 Proceedings, page 297.
  */
-colormap* mediancut(histogram* hist, const double min_opaque_val, uint newcolors, const double target_mse)
+colormap* mediancut(std::vector<hist_item>& hist, const double min_opaque_val, uint newcolors, const double target_mse)
 {
-	hist_item* achv = hist->achv;
+	hist_item* achv = &hist[0];
 	box* bv = new box[newcolors];
 
 	/*
 	 ** Set up the initial box.
 	 */
 	bv[0].ind = 0;
-	bv[0].colors = hist->size;
+	bv[0].colors = hist.size();
 	bv[0].color = averagepixels(bv[0].colors, &achv[bv[0].ind], min_opaque_val);
 	bv[0].variance = box_variance(achv, &bv[0]);
 	bv[0].sum = 0;
