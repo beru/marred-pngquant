@@ -69,7 +69,7 @@ static pngquant_error write_image(png8_image* output_image, png24_image* output_
 static char* add_filename_extension(const char* filename, const char* newext);
 static bool file_exists(const char* outname);
 
-static bool verbose = 0;
+static bool verbose = 1;
 /* prints only when verbose flag is set */
 void verbose_printf(const char* fmt, ...)
 {
@@ -805,7 +805,7 @@ histogram* get_histogram(
 	)
 {
 	histogram* hist;
-	uint ignorebits=0;
+	uint ignorebits = 0;
 	const rgb_pixel** input_pixels = (const rgb_pixel**) input_image->row_pointers;
 	const uint cols = input_image->width, rows = input_image->height;
 	const double gamma = input_image->gamma;
@@ -1040,7 +1040,7 @@ void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double g
 static
 colormap* find_best_palette(
 	histogram* hist,
-	int reqcolors,
+	uint reqcolors,
 	const double min_opaque_val,
 	const double target_mse,
 	int feedback_loop_trials,
@@ -1115,7 +1115,7 @@ pngquant_error pngquant(
 	const pngquant_options* options
 	)
 {
-	const int speed_tradeoff = options->speed_tradeoff, reqcolors = options->reqcolors;
+	const uint speed_tradeoff = options->speed_tradeoff, reqcolors = options->reqcolors;
 	const double max_mse = options->max_mse, target_mse = options->target_mse;
 	const double min_opaque_val = options->min_opaque_val;
 	assert(min_opaque_val>0.0);
@@ -1149,7 +1149,7 @@ pngquant_error pngquant(
 	colormap* acolormap = find_best_palette(hist, reqcolors, min_opaque_val, target_mse, 56-9*speed_tradeoff, &palette_error);
 
 	// Voronoi iteration approaches local minimum for the palette
-	uint iterations = max(8-speed_tradeoff,0); iterations += iterations * iterations/2;
+	uint iterations = max(8u-speed_tradeoff,0u); iterations += iterations * iterations/2;
 	if (!iterations && palette_error < 0 && max_mse < MAX_DIFF) iterations = 1; // otherwise total error is never calculated and MSE limit won't work
 
 	if (iterations) {

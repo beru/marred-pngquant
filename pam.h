@@ -521,7 +521,20 @@ double colordifference_stdc(const f_pixel px, const f_pixel py)
 static inline
 double colordifference(f_pixel px, f_pixel py)
 {
+#if 0
     return colordifference_stdc(px,py);
+#else
+	
+	f_pixel diff = rgb2lab(px) - rgb2lab(py);
+	
+	diff.square();
+	return 
+		diff.alpha * 3.0
+		+ diff.l * 1.2
+		+ diff.a * 0.8
+		+ diff.b * 0.8
+		;
+#endif
 }
 
 /* from pamcmap.h */

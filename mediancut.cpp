@@ -262,7 +262,9 @@ double prepare_sort(box* b, hist_item achv[])
 	// box will be split to make color_weight of each side even
 	const uint ind = b->ind, end = ind+b->colors;
 	double totalvar = 0;
-	for (uint j=ind; j<end; j++) totalvar += (achv[j].color_weight = color_weight(median, achv[j]));
+	for (uint j=ind; j<end; j++) {
+		totalvar += (achv[j].color_weight = color_weight(median, achv[j]));
+	}
 	return totalvar / 2.0;
 }
 
