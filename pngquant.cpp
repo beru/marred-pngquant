@@ -522,9 +522,11 @@ static double remap_to_palette(png24_image* input_image, png8_image* output_imag
 	viter_init(map, &average_color[0]);
 
 	for (uint row=0; row<rows; ++row) {
+		const rgb_pixel* const inputLine = input_pixels[row];
+		unsigned char* const outputLine = row_pointers[row];
 		for (uint col=0; col<cols; ++col) {
 
-			f_pixel px = to_f(gamma, input_pixels[row][col]);
+			f_pixel px = to_f(gamma, inputLine[col]);
 			int match;
 
 			if (px.alpha < 1.0/256.0) {
@@ -537,7 +539,7 @@ static double remap_to_palette(png24_image* input_image, png8_image* output_imag
 				remapping_error += diff;
 			}
 
-			row_pointers[row][col] = match;
+			outputLine[col] = match;
 
 			viter_update_color(px, 1.0, map, match, &average_color[0]);
 		}
@@ -601,12 +603,13 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 	
 	bool fs_direction = true;
 	for (uint row=0; row<rows; ++row) {
+		const rgb_pixel* const inputLine = input_pixels[row];
+		unsigned char* const rowLine = row_pointers[row];
 		memset(nexterr, 0, (cols + 2) * sizeof(*nexterr));
-
 		uint col = (fs_direction) ? 0 : (cols - 1);
 
 		do {
-			const f_pixel px = to_f(gamma, input_pixels[row][col]);
+			const f_pixel px = to_f(gamma, inputLine[col]);
 
 			double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
 
@@ -636,7 +639,7 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 				spx.g = sg;
 				spx.b = sb;
 				spx.alpha = sa;
-				uint curr_ind = row_pointers[row][col];
+				uint curr_ind = rowLine[col];
 				if (output_image_is_remapped && colordifference(map->palette[curr_ind].acolor, spx) < difference_tolerance[curr_ind]) {
 					ind = curr_ind;
 				}else {
@@ -644,7 +647,7 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 				}
 			}
 
-			row_pointers[row][col] = ind;
+			rowLine[col] = ind;
 
 			const f_pixel xp = acolormap[ind].acolor;
 			f_pixel err;
