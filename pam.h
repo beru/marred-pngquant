@@ -524,6 +524,12 @@ double colordifference(f_pixel px, f_pixel py)
     return colordifference_stdc(px,py);
 }
 
+/* from pamcmap.h */
+union rgb_as_long {
+    rgb_pixel rgb;
+    unsigned long l;
+};
+
 struct hist_item {
 	f_pixel acolor;
     double adjusted_weight,   // perceptual weight changed to tweak how mediancut selects colors
@@ -561,17 +567,31 @@ struct colormap {
     uint colors;
 };
 
-struct acolorhash_table {
-    mempool* mempool;
-    acolorhist_list_item** buckets;
+struct acolorhist_arr_item {
+    rgb_as_long color;
+    double perceptual_weight;
 };
 
-std::vector<hist_item> pam_computeacolorhist(
-	const f_pixel* input, size_t width, size_t height,
-	uint maxacolors, uint ignorebits,
-	const double* importance_map
-);
+struct acolorhist_arr_head {
+    uint used, capacity;
+    acolorhist_arr_item* other_items;
+    rgb_as_long color1, color2;
+    double perceptual_weight1, perceptual_weight2;
+};
 
+struct acolorhash_table {
+    mempool* mempool;
+    acolorhist_arr_head* buckets;
+};
+
+histogram* pam_computeacolorhist(
+	const rgb_pixel*const apixels[],
+	uint cols, uint rows,
+	double gamma,
+	uint maxacolors,
+	uint ignorebits,
+	const double* imp
+);
 void pam_freeacolorhist(histogram* h);
 
 colormap* pam_colormap(uint colors);

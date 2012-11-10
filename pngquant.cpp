@@ -447,13 +447,16 @@ static void sort_palette(png8_image* output_image, colormap* map, int last_index
 	/* move transparent colors to the beginning to shrink trns chunk */
 	uint num_transparent = 0;
 	for (uint i=0; i<map->colors; i++) {
-		if (map->palette[i].acolor.alpha < 1.0) {
+		rgb_pixel px = to_rgb(output_image->gamma, map->palette[i].acolor);
+		if (px.a != 255) {
 			// current transparent color is swapped with earlier opaque one
 			if (i != num_transparent) {
-				std::swap(map->palette[num_transparent], map->palette[i]);
-				--i;
+				const colormap_item tmp = map->palette[num_transparent];
+				map->palette[num_transparent] = map->palette[i];
+				map->palette[i] = tmp;
+				i--;
 			}
-			++num_transparent;
+			num_transparent++;
 		}
 	}
 
@@ -474,10 +477,10 @@ static void set_palette(png8_image* output_image, colormap* map)
 {
 	for (uint x=0; x<map->colors; ++x) {
 		colormap_item& pal = map->palette[x];
-		rgb_pixel px = to_rgb(output_image->gamma, lab2rgb(pal.acolor));
-		pal.acolor = rgb2lab(to_f(output_image->gamma, px)); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
-//		rgb_pixel px = to_rgb(output_image->gamma, pal.acolor);
-//		pal.acolor = to_f(output_image->gamma, px); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
+//		rgb_pixel px = to_rgb(output_image->gamma, lab2rgb(pal.acolor));
+//		pal.acolor = rgb2lab(to_f(output_image->gamma, px)); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
+		rgb_pixel px = to_rgb(output_image->gamma, pal.acolor);
+		pal.acolor = to_f(output_image->gamma, px); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
 
 		png_color& pc = output_image->palette[x];
 		pc.red   = px.r;
@@ -487,14 +490,13 @@ static void set_palette(png8_image* output_image, colormap* map)
 	}
 }
 
-static double remap_to_palette(
-	const f_pixel* input, size_t width, size_t height,
-	png8_image* output_image,
-	colormap* const map,
-	const double min_opaque_val
-	)
+static double remap_to_palette(png24_image* input_image, png8_image* output_image, colormap* const map, const double min_opaque_val)
 {
+	const rgb_pixel *const *const input_pixels = (const rgb_pixel **)input_image->row_pointers;
 	unsigned char *const *const row_pointers = output_image->row_pointers;
+	const int rows = input_image->height, cols = input_image->width;
+	const double gamma = input_image->gamma;
+
 	uint remapped_pixels = 0;
 	double remapping_error=0;
 
@@ -505,11 +507,12 @@ static double remap_to_palette(
 	std::vector<viter_state> average_color(map->colors);
 	viter_init(map, &average_color[0]);
 
-	const f_pixel* pInputLine = input;
-	for (uint row=0; row<height; ++row) {
+	for (uint row=0; row<rows; ++row) {
+		const rgb_pixel* const inputLine = input_pixels[row];
 		unsigned char* const outputLine = row_pointers[row];
-		for (uint col=0; col<width; ++col) {
-			f_pixel px = pInputLine[col];
+		for (uint col=0; col<cols; ++col) {
+
+			f_pixel px = to_f(gamma, inputLine[col]);
 			int match;
 
 			if (px.alpha < 1.0/256.0) {
@@ -526,7 +529,6 @@ static double remap_to_palette(
 
 			viter_update_color(px, 1.0, map, match, &average_color[0]);
 		}
-		pInputLine += width;
 	}
 
 	viter_finalize(map, &average_color[0]);
@@ -553,10 +555,9 @@ double distance_from_closest_other_color(const colormap *map, const int i)
 
   If output_image_is_remapped is true, only pixels noticeably changed by error diffusion will be written to output image.
  */
-static void remap_to_palette_floyd(
-	const f_pixel* input,
-	size_t width,
-	size_t height,
+static
+void remap_to_palette_floyd(
+	png24_image *input_image,
 	png8_image *output_image,
 	const colormap *map,
 	const double min_opaque_val,
@@ -564,7 +565,11 @@ static void remap_to_palette_floyd(
 	const int output_image_is_remapped
 	)
 {
+	const rgb_pixel *const *const input_pixels = (const rgb_pixel *const *const)input_image->row_pointers;
 	unsigned char *const *const row_pointers = output_image->row_pointers;
+	const int rows = input_image->height, cols = input_image->width;
+	const double gamma = input_image->gamma;
+
 	const colormap_item* acolormap = map->palette;
 
 	nearest_map*const n = nearest_init(map);
@@ -577,11 +582,11 @@ static void remap_to_palette_floyd(
 	}
 
 	/* Initialize Floyd-Steinberg error vectors. */
-	f_pixel* RESTRICT thiserr = (f_pixel*) malloc((width + 2) * sizeof(f_pixel));
-	f_pixel* RESTRICT nexterr = (f_pixel*) malloc((width + 2) * sizeof(f_pixel));
+	f_pixel* RESTRICT thiserr = (f_pixel*) malloc((cols + 2) * sizeof(f_pixel));
+	f_pixel* RESTRICT nexterr = (f_pixel*) malloc((cols + 2) * sizeof(f_pixel));
 	sdxor156(12345); /* deterministic dithering is better for comparing results */
 	const double INVFACTOR = 1.0 / 255.0;
-	for (uint col=0; col<width+2; ++col) {
+	for (uint col=0; col<cols+2; ++col) {
 		thiserr[col].r = (dxor156() - 0.5) * INVFACTOR;
 		thiserr[col].g = (dxor156() - 0.5) * INVFACTOR;
 		thiserr[col].b = (dxor156() - 0.5) * INVFACTOR;
@@ -589,16 +594,16 @@ static void remap_to_palette_floyd(
 	}
 	
 	bool fs_direction = true;
-	const f_pixel* pInputLine = input;
-	for (uint row=0; row<height; ++row) {
+	for (uint row=0; row<rows; ++row) {
+		const rgb_pixel* const inputLine = input_pixels[row];
 		unsigned char* const rowLine = row_pointers[row];
-		memset(nexterr, 0, (width + 2) * sizeof(*nexterr));
-		uint col = (fs_direction) ? 0 : (width - 1);
+		memset(nexterr, 0, (cols + 2) * sizeof(*nexterr));
+		uint col = (fs_direction) ? 0 : (cols - 1);
 
 		do {
-			f_pixel px = pInputLine[col];
+			const f_pixel px = to_f(gamma, inputLine[col]);
 
-			double dither_level = edge_map ? edge_map[row*width + col] : 0.9;
+			double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
 
 			/* Use Floyd-Steinberg errors to adjust actual color. */
 			f_pixel tmp = px + thiserr[col + 1] * dither_level;
@@ -668,7 +673,7 @@ static void remap_to_palette_floyd(
 			// remapping is done in zig-zag
 			if (fs_direction) {
 				++col;
-				if (col >= width) break;
+				if (col >= cols) break;
 			}else {
 				if (col <= 0) break;
 				--col;
@@ -677,7 +682,6 @@ static void remap_to_palette_floyd(
 
 		std::swap(thiserr, nexterr);
 		fs_direction = !fs_direction;
-		pInputLine += width;
 	}
 
 	free(thiserr);
@@ -767,12 +771,20 @@ static pngquant_error write_image(png8_image* output_image, png24_image* output_
 
 /* histogram contains information how many times each color is present in the image, weighted by importance_map */
 static
-std::vector<hist_item>
-get_histogram(
-	const f_pixel* input, size_t width, size_t height,
-	const uint reqcolors, const uint speed_tradeoff, const double* importance_map)
+histogram* get_histogram(
+	const png24_image* input_image,
+	const uint reqcolors,
+	const uint speed_tradeoff,
+	const double* importance_map
+	)
 {
+	histogram* hist;
 	uint ignorebits=0;
+	const rgb_pixel** input_pixels = (const rgb_pixel**) input_image->row_pointers;
+	const uint cols = input_image->width, rows = input_image->height;
+	const double gamma = input_image->gamma;
+	assert(gamma > 0);
+
    /*
 	** Step 2: attempt to make a histogram of the colors, unclustered.
 	** If at first we don't succeed, increase ignorebits to increase color
@@ -784,17 +796,15 @@ get_histogram(
 
 	verbose_printf("  making histogram...");
 	for (;;) {
-		std::vector<hist_item> hist = pam_computeacolorhist(input, width, height, maxcolors, ignorebits, importance_map);
-		if (hist.size()) {
-			verbose_printf("%d colors found\n", hist.size());
-			return hist;
-			break;
-		}
+		hist = pam_computeacolorhist(input_pixels, cols, rows, gamma, maxcolors, ignorebits, importance_map);
+		if (hist) break;
+
 		ignorebits++;
 		verbose_printf("too many colors!\n	scaling colors to improve clustering...");
 	}
 
-	return std::vector<hist_item>();
+	verbose_printf("%d colors found\n", hist->size);
+	return hist;
 }
 
 static void modify_alpha(png24_image* input_image, const double min_opaque_val)
@@ -976,7 +986,15 @@ static void adjust_histogram_callback(hist_item* item, double diff)
 
  feedback_loop_trials controls how long the search will take. < 0 skips the iteration.
  */
-static colormap* find_best_palette(std::vector<hist_item>& hist, int reqcolors, const double min_opaque_val, const double target_mse, int feedback_loop_trials, double* palette_error_p)
+static
+colormap* find_best_palette(
+	histogram* hist,
+	int reqcolors,
+	const double min_opaque_val,
+	const double target_mse,
+	int feedback_loop_trials,
+	double* palette_error_p
+	)
 {
 	colormap* acolormap = NULL;
 	double least_error = 0.0;
@@ -1039,39 +1057,15 @@ static colormap* find_best_palette(std::vector<hist_item>& hist, int reqcolors, 
 	return acolormap;
 }
 
-static
-void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double gamma, f_pixel* dest)
-{
-	f_pixel* pDst = dest;
-	for (size_t y=0; y<rows; ++y) {
-		const rgb_pixel* pSrc = apixels[y];
-		for (size_t x=0; x<cols; ++x) {
-			f_pixel lab = rgb2lab(to_f(gamma, pSrc[x]));
-			pDst[x] = lab;
-//			pDst[x] = to_f(gamma, pSrc[x]);
-		}
-		pDst += cols;
-	}
-}
-
 static pngquant_error pngquant(png24_image* input_image, png8_image* output_image, const pngquant_options* options)
 {
 	const int speed_tradeoff = options->speed_tradeoff, reqcolors = options->reqcolors;
 	const double max_mse = options->max_mse, target_mse = options->target_mse;
 	const double min_opaque_val = options->min_opaque_val;
-	modify_alpha(input_image, min_opaque_val);
-	
 	assert(min_opaque_val>0.0);
 	assert(max_mse >= target_mse);
-	size_t width = input_image->width;
-	size_t height = input_image->height;
-	std::vector<f_pixel> input(width * height);
-	convert(
-		(const rgb_pixel**)input_image->row_pointers,
-		width, height,
-		input_image->gamma, &input[0]
-		);
 	
+	modify_alpha(input_image, min_opaque_val);
 
 	double* noise = NULL;
 	double* edges = NULL;
@@ -1087,10 +1081,10 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
-	std::vector<hist_item> hist = get_histogram(&input[0], width, height, reqcolors, speed_tradeoff, noise); if (noise) free(noise);
+	histogram* hist = get_histogram(input_image, reqcolors, speed_tradeoff, noise); if (noise) free(noise);
 
 	double palette_error = -1;
-	colormap* acolormap = find_best_palette(hist, reqcolors, min_opaque_val, target_mse, 96-9*speed_tradeoff, &palette_error);
+	colormap* acolormap = find_best_palette(hist, reqcolors, min_opaque_val, target_mse, 56-9*speed_tradeoff, &palette_error);
 
 	// Voronoi iteration approaches local minimum for the palette
 	uint iterations = max(8-speed_tradeoff,0); iterations += iterations * iterations/2;
@@ -1117,6 +1111,8 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 		}
 	}
 	
+	pam_freeacolorhist(hist);
+
 	if (palette_error > max_mse) {
 		verbose_printf("  image degradation MSE=%.3f exceeded limit of %.3f\n", palette_error*65536.0, max_mse*65536.0);
 		if (edges) free(edges);
@@ -1124,8 +1120,8 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 		return TOO_LOW_QUALITY;
 	}
 
-	output_image->width = width;
-	output_image->height = height;
+	output_image->width = input_image->width;
+	output_image->height = input_image->height;
 	output_image->gamma = SRGB_GAMMA; // fixed gamma ~2.2 for the web. PNG can't store exact 1/2.2
 
 	/*
@@ -1158,7 +1154,7 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 	if (!floyd || use_dither_map) {
 		// If no dithering is required, that's the final remapping.
 		// If dithering (with dither map) is required, this image is used to find areas that require dithering
-		double remapping_error = remap_to_palette(&input[0], width, height, output_image, acolormap, min_opaque_val);
+		double remapping_error = remap_to_palette(input_image, output_image, acolormap, min_opaque_val);
 
 		// remapping error from dithered image is absurd, so always non-dithered value is used
 		// palette_error includes some perceptual weighting from histogram which is closer correlated with dssim
@@ -1180,7 +1176,7 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 	set_palette(output_image, acolormap);
 
 	if (floyd) {
-		remap_to_palette_floyd(&input[0], width, height, output_image, acolormap, min_opaque_val, edges, use_dither_map);
+		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, edges, use_dither_map);
 	}
 
 	verbose_printf("\n");

@@ -335,7 +335,7 @@ void adjust_histogram(
 	}
 }
 
-double box_error(const box* box, const std::vector<hist_item>& achv)
+double box_error(const box* box, const hist_item achv[])
 {
 	f_pixel avg = box->color;
 
@@ -348,13 +348,9 @@ double box_error(const box* box, const std::vector<hist_item>& achv)
 }
 
 
-static int total_box_error_below_target(double target_mse, box bv[], int boxes, const std::vector<hist_item>& hist)
+static int total_box_error_below_target(double target_mse, box bv[], int boxes, const histogram *hist)
 {
-	double total_perceptual_weight = 0;
-	for (size_t i=0; i<hist.size(); ++i) {
-		total_perceptual_weight += hist[i].perceptual_weight;
-	}
-	target_mse *= total_perceptual_weight;
+	target_mse *= hist->total_perceptual_weight;
 	double total_error=0;
 	for (int i=0; i<boxes; i++) {
 		// error is (re)calculated lazily
@@ -366,7 +362,7 @@ static int total_box_error_below_target(double target_mse, box bv[], int boxes, 
 
 	for (int i=0; i<boxes; i++) {
 		if (bv[i].total_error < 0) {
-			bv[i].total_error = box_error(&bv[i], hist);
+			bv[i].total_error = box_error(&bv[i], hist->achv);
 			total_error += bv[i].total_error;
 		}
 		if (total_error > target_mse) return 0;
@@ -381,21 +377,23 @@ static int total_box_error_below_target(double target_mse, box bv[], int boxes, 
  ** on Paul Heckbert's paper, "Color Image Quantization for Frame Buffer
  ** Display," SIGGRAPH 1982 Proceedings, page 297.
  */
-colormap* mediancut(std::vector<hist_item>& hist, const double min_opaque_val, uint newcolors, const double target_mse)
+colormap* mediancut(histogram* hist, const double min_opaque_val, uint newcolors, const double target_mse)
 {
-	hist_item* achv = &hist[0];
+	hist_item* achv = hist->achv;
 	box* bv = new box[newcolors];
 
 	/*
 	 ** Set up the initial box.
 	 */
 	bv[0].ind = 0;
-	bv[0].colors = hist.size();
+	bv[0].colors = hist->size;
 	bv[0].color = averagepixels(bv[0].colors, &achv[bv[0].ind], min_opaque_val);
 	bv[0].variance = box_variance(achv, &bv[0]);
 	bv[0].sum = 0;
 	bv[0].total_error = -1;
-	for (uint i=0; i<bv[0].colors; i++) bv[0].sum += achv[i].adjusted_weight;
+	for (uint i=0; i<bv[0].colors; i++) {
+		bv[0].sum += achv[i].adjusted_weight;
+	}
 
 	uint boxes = 1;
 
@@ -416,8 +414,9 @@ colormap* mediancut(std::vector<hist_item>& hist, const double min_opaque_val, u
 		if (bi < 0)
 			break;		  /* ran out of colors! */
 
-		uint indx = bv[bi].ind;
-		uint clrs = bv[bi].colors;
+		box& bx = bv[bi];
+		uint indx = bx.ind;
+		uint clrs = bx.colors;
 
 		/*
 		 Classic implementation tries to get even number of colors or pixels in each subdivision.
@@ -430,7 +429,7 @@ colormap* mediancut(std::vector<hist_item>& hist, const double min_opaque_val, u
 		 Median used as expected value gives much better results than mean.
 		 */
 
-		const double halfvar = prepare_sort(&bv[bi], achv);
+		const double halfvar = prepare_sort(&bx, achv);
 		double lowervar=0;
 
 		// hist_item_sort_halfvar sorts and sums lowervar at the same time
@@ -441,21 +440,24 @@ colormap* mediancut(std::vector<hist_item>& hist, const double min_opaque_val, u
 		/*
 		 ** Split the box.
 		 */
-		double sm = bv[bi].sum;
+		double sm = bx.sum;
 		double lowersum = 0;
-		for (uint i=0; i<break_at; i++) lowersum += achv[indx + i].adjusted_weight;
+		for (uint i=0; i<break_at; i++) {
+			lowersum += achv[indx + i].adjusted_weight;
+		}
 
-		bv[bi].colors = break_at;
-		bv[bi].sum = lowersum;
-		bv[bi].color = averagepixels(bv[bi].colors, &achv[bv[bi].ind], min_opaque_val);
-		bv[bi].total_error = -1;
-		bv[bi].variance = box_variance(achv, &bv[bi]);
-		bv[boxes].ind = indx + break_at;
-		bv[boxes].colors = clrs - break_at;
-		bv[boxes].sum = sm - lowersum;
-		bv[boxes].color = averagepixels(bv[boxes].colors, &achv[bv[boxes].ind], min_opaque_val);
-		bv[boxes].total_error = -1;
-		bv[boxes].variance = box_variance(achv, &bv[boxes]);
+		bx.colors = break_at;
+		bx.sum = lowersum;
+		bx.color = averagepixels(bx.colors, &achv[bx.ind], min_opaque_val);
+		bx.total_error = -1;
+		bx.variance = box_variance(achv, &bx);
+		box& bx2 = bv[boxes];
+		bx2.ind = indx + break_at;
+		bx2.colors = clrs - break_at;
+		bx2.sum = sm - lowersum;
+		bx2.color = averagepixels(bx2.colors, &achv[bx2.ind], min_opaque_val);
+		bx2.total_error = -1;
+		bx2.variance = box_variance(achv, &bx2);
 		
 		++boxes;
 
