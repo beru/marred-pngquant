@@ -19,6 +19,7 @@
 #include <assert.h>
 
 #include "mempool.h"
+#include "rwpng.h"
 
 #define MAX_DIFF 1e20
 
@@ -294,7 +295,7 @@ bool operator == (const f_pixel& l, const f_pixel& r)
 }
 
 // http://www.cgsd.com/papers/gamma_colorspace.html
-static const double INTERNAL_GAMMA = 0.45455;	// adjust this value depends on image hehehe
+static const double INTERNAL_GAMMA = SRGB_GAMMA;	// adjust this value depends on image hehehe
 
 /**
  Converts 8-bit color to internal gamma and premultiplied alpha.

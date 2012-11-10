@@ -87,4 +87,5 @@ pngquant_error rwpng_write_image8(FILE* outfile, png8_image* mainprog_ptr);
 pngquant_error rwpng_write_image24(FILE* outfile, png24_image* mainprog_ptr);
 
 
-static const double SRGB_GAMMA = 0.45455; // 1.0/2.2
+static const double SRGB_GAMMA = 1.0/2.2;
+

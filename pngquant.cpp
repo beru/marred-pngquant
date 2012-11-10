@@ -666,6 +666,21 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 			err.alpha *= dither_level;
 
 			/* Propagate Floyd-Steinberg error terms. */
+#if 1
+			// changed kernel after reading the paper : Reinstating FloydSteinberg: Improved Metrics for Quality Assessment of Error Diffusion Algorithms (Sam Hocevar, Gary Niger)
+			/* Propagate Floyd-Steinberg error terms. */
+			if (fs_direction) {
+				thiserr[col + 2] += err * 7.0 / 16.0;
+				nexterr[col	   ] += err * 4.0 / 16.0;
+				nexterr[col + 1] += err * 5.0 / 16.0;
+				nexterr[col + 2] += err	* 0.0 / 16.0;
+			}else {
+				thiserr[col	   ] += err * 7.0 / 16.0;
+				nexterr[col	   ] += err	* 0.0 / 16.0;
+				nexterr[col + 1] += err * 5.0 / 16.0;
+				nexterr[col + 2] += err * 4.0 / 16.0;
+			}
+#else
 			if (fs_direction) {
 				thiserr[col + 2] += err * 7.0/16.0;
 				nexterr[col	   ] += err * 3.0/16.0;
@@ -677,7 +692,7 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 				nexterr[col + 1] += err * 5.0/16.0;
 				nexterr[col + 2] += err * 3.0/16.0;
 			}
-
+#endif
 			// remapping is done in zig-zag
 			if (fs_direction) {
 				++col;
@@ -1118,7 +1133,7 @@ static pngquant_error pngquant(png24_image* input_image, png8_image* output_imag
 
 	output_image->width = input_image->width;
 	output_image->height = input_image->height;
-	output_image->gamma = 0.45455; // fixed gamma ~2.2 for the web. PNG can't store exact 1/2.2
+	output_image->gamma = SRGB_GAMMA; // fixed gamma ~2.2 for the web. PNG can't store exact 1/2.2
 
 	/*
 	** Step 3.7 [GRR]: allocate memory for the entire indexed image
