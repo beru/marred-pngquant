@@ -40,6 +40,7 @@ use --force to overwrite.\n"
 #include <string.h>
 #include <stdarg.h>
 #include "getopt.h"
+#include "dxor.h"
 
 #if defined(WIN32) || defined(__WIN32__)
 #  include <fcntl.h>	/* O_BINARY */
@@ -589,14 +590,13 @@ static void remap_to_palette_floyd(png24_image *input_image, png8_image *output_
 	/* Initialize Floyd-Steinberg error vectors. */
 	f_pixel* RESTRICT thiserr = (f_pixel*) malloc((cols + 2) * sizeof(f_pixel));
 	f_pixel* RESTRICT nexterr = (f_pixel*) malloc((cols + 2) * sizeof(f_pixel));
-	srand(12345); /* deterministic dithering is better for comparing results */
-
+	sdxor156(12345); /* deterministic dithering is better for comparing results */
+	const double INVFACTOR = 1.0 / 255.0;
 	for (uint col=0; col<cols+2; ++col) {
-		const double rand_max = RAND_MAX;
-		thiserr[col].r = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].g = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].b = ((double)rand() - rand_max/2.0)/rand_max/255.0;
-		thiserr[col].alpha = ((double)rand() - rand_max/2.0)/rand_max/255.0;
+		thiserr[col].r = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].g = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].b = (dxor156() - 0.5) * INVFACTOR;
+		thiserr[col].alpha = (dxor156() - 0.5) * INVFACTOR;
 	}
 	
 	bool fs_direction = true;
