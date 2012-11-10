@@ -906,42 +906,46 @@ pngquant_error read_image(const char* filename, int using_stdin, png24_image* in
  */
 static
 void contrast_maps(
-	const rgb_pixel*const apixels[],
-	const uint cols,
-	const uint rows,
-	const double gamma,
-	double** noiseP,
-	double** edgesP
+	const f_pixel* pixels,
+	size_t cols,
+	size_t rows,
+	double* noise,
+	double* edges
 	)
 {
-	double* RESTRICT noise = (double*) malloc(sizeof(double)*cols*rows);
-	double* RESTRICT tmp = (double*) malloc(sizeof(double)*cols*rows);
-	double* RESTRICT edges = (double*) malloc(sizeof(double)*cols*rows);
-
-	for (uint j=0; j<rows; j++) {
-		f_pixel prev, curr = to_f(gamma, apixels[j][0]), next=curr;
-		const rgb_pixel* prevLine = apixels[min(rows-1,j+1)];
-		const rgb_pixel* nextLine = apixels[j > 1 ? j-1 : 0];
-		for (uint i=0; i<cols; i++) {
+	std::vector<double> tmpVec(cols*rows);
+	double* tmp = &tmpVec[0];
+	
+	const f_pixel* pSrc = pixels;
+	double* pNoise = noise;
+	double* pEdges = edges;
+	for (size_t y=0; y<rows; ++y) {
+		f_pixel prev, curr = pSrc[0], next=curr;
+		const f_pixel* nextLine = (y == 0) ? pSrc : (pSrc - cols);
+		const f_pixel* prevLine = (y == rows-1) ? pSrc : (pSrc + cols);
+		for (size_t x=0; x<cols; ++x) {
 			prev = curr;
 			curr = next;
-			next = to_f(gamma, apixels[j][min(cols-1,i+1)]);
-			
+			next = pSrc[min(cols-1,x+1)];
 			// contrast is difference between pixels neighbouring horizontally and vertically
-			const f_pixel hd = (prev+next - curr*2.0).abs();
-			const f_pixel prevl = to_f(gamma, prevLine[i]);
-			const f_pixel nextl = to_f(gamma, nextLine[i]);
-			const f_pixel vd = (prevl+nextl - curr*2.0).abs();
-			const double horiz = max(hd.alpha, hd.r, hd.g, hd.b);
-			const double vert = max(vd.alpha, vd.r, vd.g, vd.b);
-			const double edge = max(horiz, vert);
-			double z = edge - abs(horiz-vert)*0.5;
-			z = 1.0 - max(z, horiz, vert);
+			f_pixel hd = (prev + next - curr * 2.0).abs();
+			f_pixel nextl = nextLine[x];
+			f_pixel prevl = prevLine[x];
+			f_pixel vd = (prevl + nextl - curr * 2.0).abs();
+			double horiz = max(hd.alpha, hd.r, hd.g, hd.b);
+			double vert = max(vd.alpha, vd.r, vd.g, vd.b);
+			double edge = max(horiz, vert);
+			double z = edge - fabs(horiz-vert)*.5;
+			z = 1.0 - max(z,min(horiz,vert));
 			z *= z; // noise is amplified
 			z *= z;
-			noise[j*cols+i] = z;
-			edges[j*cols+i] = 1.0 - edge;
+
+			pNoise[x] = z;
+			pEdges[x] = 1.0 - edge;
 		}
+		pSrc += cols;
+		pNoise += cols;
+		pEdges += cols;
 	}
 
 	// noise areas are shrunk and then expanded to remove thin edges from the map
@@ -961,11 +965,6 @@ void contrast_maps(
 	for (uint i=0; i<cols*rows; i++) {
 		edges[i] = min(noise[i], edges[i]);
 	}
-
-	free(tmp);
-
-	*noiseP = noise;
-	*edgesP = edges;
 }
 
 /**
@@ -1017,6 +1016,20 @@ static
 void adjust_histogram_callback(hist_item* item, double diff)
 {
 	item->adjusted_weight = (item->perceptual_weight+item->adjusted_weight) * (sqrtf(1.0+diff));
+}
+
+void convert(const rgb_pixel*const apixels[], size_t cols, size_t rows, double gamma, f_pixel* dest)
+{
+	f_pixel* pDst = dest;
+	for (size_t y=0; y<rows; ++y) {
+		const rgb_pixel* pSrc = apixels[y];
+		for (size_t x=0; x<cols; ++x) {
+			f_pixel lab = rgb2lab(to_f(gamma, pSrc[x]));
+			pDst[x] = lab;
+//			pDst[x] = to_f(gamma, pSrc[x]);
+		}
+		pDst += cols;
+	}
 }
 
 /**
@@ -1109,22 +1122,28 @@ pngquant_error pngquant(
 	assert(max_mse >= target_mse);
 	
 	modify_alpha(input_image, min_opaque_val);
-
-	double* noise = NULL;
-	double* edges = NULL;
-	if (speed_tradeoff < 8 && input_image->width >= 4 && input_image->height >= 4) {
-		contrast_maps(
-			(const rgb_pixel**)input_image->row_pointers,
-			input_image->width,
-			input_image->height,
-			input_image->gamma,
-			&noise, &edges
+	size_t width = input_image->width;
+	size_t height = input_image->height;
+	std::vector<f_pixel> input(width * height);
+	convert(
+		(const rgb_pixel**)input_image->row_pointers,
+		width, height,
+		input_image->gamma, &input[0]
 		);
+	
+	std::vector<double> noise(width * height);
+	std::vector<double> edges(width * height);
+	if (speed_tradeoff < 8 && width >= 4 && height >= 4) {
+		contrast_maps(
+			&input[0],
+			width, height,
+			&noise[0], &edges[0]
+			);
 	}
 
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
-	histogram* hist = get_histogram(input_image, reqcolors, speed_tradeoff, noise); if (noise) free(noise);
+	histogram* hist = get_histogram(input_image, reqcolors, speed_tradeoff, &noise[0]);
 
 	double palette_error = -1;
 	colormap* acolormap = find_best_palette(hist, reqcolors, min_opaque_val, target_mse, 56-9*speed_tradeoff, &palette_error);
@@ -1158,7 +1177,6 @@ pngquant_error pngquant(
 
 	if (palette_error > max_mse) {
 		verbose_printf("  image degradation MSE=%.3f exceeded limit of %.3f\n", palette_error*65536.0, max_mse*65536.0);
-		if (edges) free(edges);
 		pam_freecolormap(acolormap);
 		return TOO_LOW_QUALITY;
 	}
@@ -1192,7 +1210,7 @@ pngquant_error pngquant(
 	verbose_printf("  mapping image to new colors...");
 
 	const int floyd = options->floyd,
-			  use_dither_map = floyd && edges && speed_tradeoff < 6;
+			  use_dither_map = floyd && speed_tradeoff < 6;
 
 	if (!floyd || use_dither_map) {
 		// If no dithering is required, that's the final remapping.
@@ -1207,7 +1225,7 @@ pngquant_error pngquant(
 		}
 
 		if (use_dither_map) {
-			update_dither_map(output_image, edges);
+			update_dither_map(output_image, &edges[0]);
 		}
 	}
 
@@ -1219,12 +1237,11 @@ pngquant_error pngquant(
 	set_palette(output_image, acolormap);
 
 	if (floyd) {
-		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, edges, use_dither_map);
+		remap_to_palette_floyd(input_image, output_image, acolormap, min_opaque_val, &edges[0], use_dither_map);
 	}
 
 	verbose_printf("\n");
 
-	if (edges) free(edges);
 	pam_freecolormap(acolormap);
 
 	return SUCCESS;
