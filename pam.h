@@ -527,10 +527,16 @@ double colordifference(f_pixel px, f_pixel py)
 #else
 	
 	f_pixel diff = px - py;
-	
+#if 1
+	f_pixel tmp = diff;
+	diff *= tmp;
+	diff *= tmp;
+	diff.abs();
+#else
 	diff.square();
-	return 
-		diff.alpha * 2.0
+#endif
+	return
+		diff.alpha * 2
 		+ diff.l * 1.0
 		+ diff.a * 1.0
 		+ diff.b * 1.0
