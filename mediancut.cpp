@@ -76,7 +76,7 @@ struct box {
 };
 
 /** Weighted per-channel variance of the box. It's used to decide which channel to split by */
-static f_pixel box_variance(const hist_item achv[], const box *box)
+static f_pixel box_variance(const hist_item achv[], const box* box)
 {
 	f_pixel mean = box->color;
 	f_pixel variance(0.0, 0.0, 0.0, 0.0);
@@ -152,7 +152,7 @@ uint qsort_partition(hist_item* const base, const uint len)
 
 /** this is a simple qsort that completely sorts only elements between sort_start and +sort_len. Used to find median of the set. */
 static
-void hist_item_sort_range(hist_item *base, uint len, int sort_start, const uint sort_len)
+void hist_item_sort_range(hist_item* base, uint len, int sort_start, const uint sort_len)
 {
 	do {
 		const uint l = qsort_partition(base, len), r = l+1;
@@ -162,7 +162,9 @@ void hist_item_sort_range(hist_item *base, uint len, int sort_start, const uint 
 		}
 		if (len > r && r < sort_start+sort_len && (signed)len > sort_start) {
 			base += r; len -= r; sort_start -= r; // tail-recursive "call"
-		} else return;
+		}else {
+			return;
+		}
 	} while(1);
 }
 
@@ -201,7 +203,7 @@ hist_item* hist_item_sort_halfvar(hist_item* base, uint len, double* const lower
 
 /** finds median in unsorted set by sorting only minimum required */
 static
-f_pixel get_median(const box *b, hist_item achv[])
+f_pixel get_median(const box* b, hist_item achv[])
 {
 	const uint median_start = (b->colors-1)/2;
 
@@ -246,7 +248,7 @@ double prepare_sort(box* b, hist_item achv[])
 		channelvariance(index_of_channel(b), b->variance.b),
 		channelvariance(index_of_channel(alpha), b->variance.alpha),
 	};
-
+	
 	std::sort(channels, channels+4);
 	
 	for (uint i=0; i<b->colors; i++) {
@@ -294,7 +296,7 @@ int best_splittable_box(const box* bv, uint boxes)
 static
 colormap* colormap_from_boxes(
 	const box* bv,
-	int boxes,
+	uint boxes,
 	const hist_item* achv,
 	double min_opaque_val
 	)
@@ -357,7 +359,7 @@ double box_error(const box* box, const hist_item achv[])
 
 
 static
-int total_box_error_below_target(double target_mse, box bv[], int boxes, const histogram *hist)
+int total_box_error_below_target(double target_mse, box bv[], uint boxes, const histogram *hist)
 {
 	target_mse *= hist->total_perceptual_weight;
 	double total_error=0;
@@ -403,30 +405,30 @@ colormap* mediancut(histogram* hist, const double min_opaque_val, uint newcolors
 	for (uint i=0; i<bv[0].colors; i++) {
 		bv[0].sum += achv[i].adjusted_weight;
 	}
-
+	
 	uint boxes = 1;
-
+	
 	// remember smaller palette for fast searching
 	colormap* representative_subset = NULL;
 	uint subset_size = ceil(pow(newcolors,0.7));
-
+	
 	/*
 	 ** Main loop: split boxes until we have enough.
 	 */
 	while (boxes < newcolors) {
-
+		
 		if (boxes == subset_size) {
 			representative_subset = colormap_from_boxes(bv, boxes, achv, min_opaque_val);
 		}
-
+		
 		int bi= best_splittable_box(bv, boxes);
 		if (bi < 0)
 			break;		  /* ran out of colors! */
-
+		
 		box& bx = bv[bi];
 		uint indx = bx.ind;
 		uint clrs = bx.colors;
-
+		
 		/*
 		 Classic implementation tries to get even number of colors or pixels in each subdivision.
 
@@ -437,15 +439,15 @@ colormap* mediancut(histogram* hist, const double min_opaque_val, uint newcolors
 
 		 Median used as expected value gives much better results than mean.
 		 */
-
+		
 		const double halfvar = prepare_sort(&bx, achv);
 		double lowervar=0;
-
+		
 		// hist_item_sort_halfvar sorts and sums lowervar at the same time
 		// returns item to break at ??minus one, which does smell like an off-by-one error.
 		hist_item* break_p = hist_item_sort_halfvar(&achv[indx], clrs, &lowervar, halfvar);
 		uint break_at = min<uint>(clrs-1, break_p - &achv[indx] + 1);
-
+		
 		/*
 		 ** Split the box.
 		 */

@@ -59,7 +59,7 @@ double viter_do_iteration(
 	hist_item* const achv = hist->achv;
 	const int hist_size = hist->size;
 
-	double total_diff=0;
+	double total_diff = 0;
 	for (size_t j=0; j<hist->size; ++j) {
 		double diff;
 		uint match = nearest_search(n, achv[j].acolor, min_opaque_val, &diff);

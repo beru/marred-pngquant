@@ -501,7 +501,8 @@ f_pixel lab2rgb(f_pixel lab)
 
 #endif
 
-inline static double colordifference_ch(const double x, const double y, const double alphas)
+inline static
+double colordifference_ch(const double x, const double y, const double alphas)
 {
     // maximum of channel blended on white, and blended on black
     // premultiplied alpha and backgrounds 0/1 shorten the formula
@@ -525,14 +526,14 @@ double colordifference(f_pixel px, f_pixel py)
     return colordifference_stdc(px,py);
 #else
 	
-	f_pixel diff = rgb2lab(px) - rgb2lab(py);
+	f_pixel diff = px - py;
 	
 	diff.square();
 	return 
-		diff.alpha * 3.0
-		+ diff.l * 1.2
-		+ diff.a * 0.8
-		+ diff.b * 0.8
+		diff.alpha * 2.0
+		+ diff.l * 1.0
+		+ diff.a * 1.0
+		+ diff.b * 1.0
 		;
 #endif
 }

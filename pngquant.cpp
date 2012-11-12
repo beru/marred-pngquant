@@ -457,8 +457,7 @@ void sort_palette(
 	/* move transparent colors to the beginning to shrink trns chunk */
 	uint num_transparent = 0;
 	for (uint i=0; i<map->colors; i++) {
-		rgb_pixel px = to_rgb(output_image->gamma, map->palette[i].acolor);
-		if (px.a != 255) {
+		if (map->palette[i].acolor.alpha < 1.0) {
 			// current transparent color is swapped with earlier opaque one
 			if (i != num_transparent) {
 				const colormap_item tmp = map->palette[num_transparent];
@@ -488,10 +487,10 @@ void set_palette(png8_image* output_image, colormap* map)
 {
 	for (uint x=0; x<map->colors; ++x) {
 		colormap_item& pal = map->palette[x];
-//		rgb_pixel px = to_rgb(output_image->gamma, lab2rgb(pal.acolor));
-//		pal.acolor = rgb2lab(to_f(output_image->gamma, px)); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
-		rgb_pixel px = to_rgb(output_image->gamma, pal.acolor);
-		pal.acolor = to_f(output_image->gamma, px); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
+		rgb_pixel px = to_rgb(output_image->gamma, lab2rgb(pal.acolor));
+		pal.acolor = rgb2lab(to_f(output_image->gamma, px)); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
+//		rgb_pixel px = to_rgb(output_image->gamma, pal.acolor);
+//		pal.acolor = to_f(output_image->gamma, px); /* saves rounding error introduced by to_rgb, which makes remapping & dithering more accurate */
 
 		png_color& pc = output_image->palette[x];
 		pc.red   = px.r;
@@ -530,6 +529,7 @@ double remap_to_palette(
 		for (uint col=0; col<cols; ++col) {
 
 			f_pixel px = to_f(gamma, inputLine[col]);
+			px = rgb2lab(px);
 			int match;
 
 			if (px.alpha < 1.0/256.0) {
@@ -618,7 +618,8 @@ void remap_to_palette_floyd(
 		uint col = (fs_direction) ? 0 : (cols - 1);
 
 		do {
-			const f_pixel px = to_f(gamma, inputLine[col]);
+			f_pixel px = to_f(gamma, inputLine[col]);
+			px = rgb2lab(px);
 
 			double dither_level = edge_map ? edge_map[row*cols + col] : 0.9;
 
@@ -824,11 +825,11 @@ histogram* get_histogram(
 	for (;;) {
 		hist = pam_computeacolorhist(input_pixels, cols, rows, gamma, maxcolors, ignorebits, importance_map);
 		if (hist) break;
-
+		
 		ignorebits++;
 		verbose_printf("too many colors!\n	scaling colors to improve clustering...");
 	}
-
+	
 	verbose_printf("%d colors found\n", hist->size);
 	return hist;
 }
@@ -1140,11 +1141,16 @@ pngquant_error pngquant(
 			&noise[0], &edges[0]
 			);
 	}
-
+	
 	// histogram uses noise contrast map for importance. Color accuracy in noisy areas is not very important.
 	// noise map does not include edges to avoid ruining anti-aliasing
 	histogram* hist = get_histogram(input_image, reqcolors, speed_tradeoff, &noise[0]);
-
+	
+	for (uint i=0; i<hist->size; ++i) {
+		hist_item& item = hist->achv[i];
+		item.acolor = rgb2lab(item.acolor);
+	}
+	
 	double palette_error = -1;
 	colormap* acolormap = find_best_palette(hist, reqcolors, min_opaque_val, target_mse, 56-9*speed_tradeoff, &palette_error);
 
@@ -1159,16 +1165,16 @@ pngquant_error pngquant(
 		double previous_palette_error = MAX_DIFF;
 		for (uint i=0; i<iterations; i++) {
 			palette_error = viter_do_iteration(hist, acolormap, min_opaque_val, NULL);
-
+			
 			if (abs(previous_palette_error-palette_error) < iteration_limit) {
 				break;
 			}
-
+			
 			if (palette_error > max_mse*1.5) { // probably hopeless
 				if (palette_error > max_mse*3.0) break; // definitely hopeless
 				iterations++;
 			}
-
+			
 			previous_palette_error = palette_error;
 		}
 	}
